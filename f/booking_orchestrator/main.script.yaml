@@ -1,0 +1,25 @@
+summary: ''
+description: ''
+lock: '!inline f/booking_orchestrator/main.script.lock'
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    entities:
+      type: ''
+      description: ''
+      default: null
+    intent:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    telegram_chat_id:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+  required:
+    - telegram_chat_id
+    - intent

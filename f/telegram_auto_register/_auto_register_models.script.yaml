@@ -1,0 +1,9 @@
+summary: ''
+description: ''
+lock: '!inline f/telegram_auto_register/_auto_register_models.script.lock'
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties: {}
+  required: []

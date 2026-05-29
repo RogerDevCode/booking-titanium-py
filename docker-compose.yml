@@ -1,0 +1,221 @@
+services:
+  # ─────────────────────────────────────────────────────────────
+  # INFRASTRUCTURE (no profiles — always up in dev and prod)
+  # ─────────────────────────────────────────────────────────────
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_PASSWORD=booking
+      - POSTGRES_USER=booking
+      - POSTGRES_DB=booking
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U booking -d booking"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE:-20m}"
+        max-file: "${LOG_MAX_FILE:-10}"
+
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+    ports:
+      - 6379:6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE:-20m}"
+        max-file: "${LOG_MAX_FILE:-10}"
+
+  # ─────────────────────────────────────────────────────────────
+  # API — DEV profile
+  # Hot-reload enabled. Source code mounted as volume.
+  # Auto-rebuild on Python/config changes via `develop.watch`.
+  # ─────────────────────────────────────────────────────────────
+  api:
+    build: .
+    restart: unless-stopped
+    profiles: ["dev"]
+    command: [
+      "uvicorn", "app.main:app",
+      "--host", "0.0.0.0", "--port", "8000",
+      "--reload"
+    ]
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - /app/.venv        # preserve venv from image, do not override with host
+    ports:
+      - 8000:8000
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    develop:
+      watch:
+        # Rebuild image when dependencies change
+        - action: rebuild
+          path: ./pyproject.toml
+        - action: rebuild
+          path: ./uv.lock
+        # Sync source code changes without full rebuild (hot-reload handles the rest)
+        - action: sync
+          path: ./app
+          target: /app/app
+        - action: sync
+          path: ./f
+          target: /app/f
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE:-20m}"
+        max-file: "${LOG_MAX_FILE:-10}"
+
+  # ─────────────────────────────────────────────────────────────
+  # API — PROD profile
+  # Multi-worker, sealed image, no source mounts.
+  # ─────────────────────────────────────────────────────────────
+  api-prod:
+    build: .
+    restart: unless-stopped
+    profiles: ["prod"]
+    command: [
+      "uvicorn", "app.main:app",
+      "--host", "0.0.0.0", "--port", "8000",
+      "--workers", "4"
+    ]
+    env_file:
+      - .env
+    ports:
+      - 8000:8000
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE:-20m}"
+        max-file: "${LOG_MAX_FILE:-10}"
+
+  # ─────────────────────────────────────────────────────────────
+  # WORKER (ARQ) — DEV profile
+  # Mounted volume so hot-reload of worker code is immediate.
+  # ─────────────────────────────────────────────────────────────
+  worker:
+    build: .
+    restart: unless-stopped
+    profiles: ["dev"]
+    command: ["arq", "app.worker.settings.WorkerSettings"]
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - /app/.venv
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    develop:
+      watch:
+        - action: rebuild
+          path: ./pyproject.toml
+        - action: rebuild
+          path: ./uv.lock
+        - action: sync
+          path: ./app
+          target: /app/app
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE:-20m}"
+        max-file: "${LOG_MAX_FILE:-10}"
+
+  # ─────────────────────────────────────────────────────────────
+  # WORKER (ARQ) — PROD profile
+  # ─────────────────────────────────────────────────────────────
+  worker-prod:
+    build: .
+    restart: unless-stopped
+    profiles: ["prod"]
+    command: ["arq", "app.worker.settings.WorkerSettings"]
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE:-20m}"
+        max-file: "${LOG_MAX_FILE:-10}"
+
+  # ─────────────────────────────────────────────────────────────
+  # TELEGRAM POLLER — DEV profile
+  # Uses long-polling as webhook bypass for local development.
+  # Depends on `api` (dev API service).
+  # ─────────────────────────────────────────────────────────────
+  poller:
+    build: .
+    restart: unless-stopped
+    profiles: ["dev"]
+    command: ["python", "scripts/telegram_poller.py"]
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - /app/.venv
+    environment:
+      - API_WEBHOOK_URL=http://api:8000/api/v1/webhook
+    depends_on:
+      api:
+        condition: service_started
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE:-20m}"
+        max-file: "${LOG_MAX_FILE:-10}"
+
+  # ─────────────────────────────────────────────────────────────
+  # TELEGRAM POLLER — PROD profile
+  # Depends on `api-prod`.
+  # ─────────────────────────────────────────────────────────────
+  poller-prod:
+    build: .
+    restart: unless-stopped
+    profiles: ["prod"]
+    command: ["python", "scripts/telegram_poller.py"]
+    env_file:
+      - .env
+    environment:
+      - API_WEBHOOK_URL=http://api-prod:8000/api/v1/webhook
+    depends_on:
+      api-prod:
+        condition: service_started
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE:-20m}"
+        max-file: "${LOG_MAX_FILE:-10}"
+
+volumes:
+  db_data:

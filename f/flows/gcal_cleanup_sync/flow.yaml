@@ -1,0 +1,192 @@
+# ============================================================================
+# GCAL_CLEANUP_SYNC - Windmill Flow
+# ============================================================================
+# This flow cleans up orphaned GCal events and syncs with DB
+# Cleanup and synchronization flow for Google Calendar
+# 
+# Usage:
+#   - Trigger: Manual, Schedule (hourly), HTTP Webhook (GCal events), or Event-driven
+#   - Input: mode (full/selective), provider_id, service_id, date_from, date_to, dry_run
+#   - Output: total_gcal, total_db, matched, orphaned_gcal, orphaned_db, deleted_gcal, updated_db
+# ============================================================================
+
+summary: GCal cleanup and sync with DB
+description: |
+  Cleans up orphaned Google Calendar events and synchronizes booking status
+  between DB and GCal. Detects and removes orphaned GCal events (events without
+  corresponding DB bookings) and updates orphaned DB bookings (bookings without
+  corresponding GCal events).
+  
+  Features:
+  - Bidirectional sync (DB ↔ GCal)
+  - Orphan detection and cleanup
+  - Dry-run mode for testing
+  - Selective or full cleanup modes
+  - Event-driven sync via webhooks
+  - Audit trail logging
+
+tags:
+  - gcal
+  - cleanup
+  - sync
+  - orphan
+  - booking
+
+inputs:
+  mode:
+    type: string
+    description: Cleanup mode (full or selective)
+    default: "full"
+    enum: ["full", "selective"]
+    required: true
+    
+  provider_id:
+    type: string
+    description: Provider UUID (required for selective mode)
+    required: false
+    
+  service_id:
+    type: string
+    description: Service UUID (required for selective mode)
+    required: false
+    
+  date_from:
+    type: string
+    description: Start date (YYYY-MM-DD)
+    required: false
+    
+  date_to:
+    type: string
+    description: End date (YYYY-MM-DD)
+    required: false
+    
+  dry_run:
+    type: boolean
+    description: If true, don't delete/update, just report
+    default: false
+    required: false
+
+steps:
+  # Step 1: Validate input
+  - name: validate_input
+    script: f/gcal_cleanup_sync
+    inputs:
+      mode: $inputs.mode
+      provider_id: $inputs.provider_id
+      service_id: $inputs.service_id
+      date_from: $inputs.date_from
+      date_to: $inputs.date_to
+      dry_run: $inputs.dry_run
+    retry: 1
+    
+  # Step 2: Check validation
+  - name: check_validation
+    script: f/internal/flow_guard
+    inputs:
+      condition: $steps.validate_input.result.success
+      error_message: "Input validation failed"
+    continue_on_error: false
+    
+  # Step 3: Get GCal events
+  - name: get_gcal_events
+    script: f/gcal_list_events
+    inputs:
+      calendar_id: "primary"
+      date_from: $inputs.date_from
+      date_to: $inputs.date_to
+    retry: 2
+    
+  # Step 4: Get DB bookings
+  - name: get_db_bookings
+    script: f/internal/get_bookings_by_filters
+    inputs:
+      provider_id: $inputs.provider_id
+      service_id: $inputs.service_id
+      date_from: $inputs.date_from
+      date_to: $inputs.date_to
+    retry: 2
+    
+  # Step 5: Compare and find orphans
+  - name: find_orphans
+    script: f/internal/compare_gcal_db
+    inputs:
+      gcal_events: $steps.get_gcal_events.result.events
+      db_bookings: $steps.get_db_bookings.result.bookings
+    retry: 1
+    
+  # Step 6: Delete orphaned GCal events
+  - name: delete_orphaned_gcal
+    script: f/gcal_delete_event
+    inputs:
+      event_ids: $steps.find_orphans.result.orphaned_gcal_ids
+      dry_run: $inputs.dry_run
+    continue_on_error: true  # Don't fail if some deletions fail
+    retry: 2
+    
+  # Step 7: Update orphaned DB bookings
+  - name: update_orphaned_db
+    script: f/internal/update_booking_status
+    inputs:
+      booking_ids: $steps.find_orphans.result.orphaned_db_ids
+      new_status: "CANCELLED"
+      reason: "GCal event not found"
+      dry_run: $inputs.dry_run
+    continue_on_error: true
+    retry: 2
+    
+  # Step 8: Aggregate results
+  - name: aggregate_results
+    script: f/internal/aggregate_cleanup_results
+    inputs:
+      gcal_count: $steps.get_gcal_events.result.count
+      db_count: $steps.get_db_bookings.result.count
+      matched: $steps.find_orphans.result.matched
+      orphaned_gcal: $steps.delete_orphaned_gcal.result.deleted
+      orphaned_db: $steps.update_orphaned_db.result.updated
+      dry_run: $inputs.dry_run
+    retry: 1
+    
+  # Step 9: Log audit trail
+  - name: log_audit
+    script: f/internal/log_audit_trail
+    inputs:
+      action: "gcal_cleanup_sync"
+      result: $steps.aggregate_results.result
+      dry_run: $inputs.dry_run
+    continue_on_error: true
+
+outputs:
+  success: $steps.aggregate_results.result.success
+  total_gcal: $steps.aggregate_results.result.total_gcal
+  total_db: $steps.aggregate_results.result.total_db
+  matched: $steps.aggregate_results.result.matched
+  orphaned_gcal: $steps.aggregate_results.result.orphaned_gcal
+  orphaned_db: $steps.aggregate_results.result.orphaned_db
+  deleted_gcal: $steps.aggregate_results.result.deleted_gcal
+  updated_db: $steps.aggregate_results.result.updated_db
+  errors: $steps.aggregate_results.result.errors
+  dry_run: $inputs.dry_run
+
+# Flow settings
+settings:
+  timeout: 600  # 10 minutes timeout for full cleanup
+  concurrent_execution: false  # Prevent concurrent cleanup operations
+  queue: gcal_sync  # Dedicated queue for GCal sync operations
+
+# Scheduling (optional - enable for periodic cleanup)
+# schedule:
+#   cron: "0 * * * *"  # Hourly
+#   timezone: "UTC"
+
+# Webhook (for GCal event-driven sync)
+# webhook:
+#   path: "gcal-sync-trigger"
+#   methods: ["POST"]
+#   auth: "bearer_token"
+
+# Triggers (for event-driven execution)
+# triggers:
+#   - type: webhook
+#     path: "gcal-sync-trigger"
+#     methods: ["POST"]
+#     auth: true

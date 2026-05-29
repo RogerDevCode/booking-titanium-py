@@ -1,0 +1,25 @@
+summary: ''
+description: ''
+lock: '!inline f/internal/conversation_get/main.script.lock'
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    chat_id:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    pg_url:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    redis_url:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+  required:
+    - chat_id

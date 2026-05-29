@@ -1,0 +1,21 @@
+{
+  "name": "booking-titanium-wm",
+  "description": "Windmill medical booking system — 40+ features in f/",
+  "codeLanguage": "typescript",
+  "output": "../.ai-codex",
+  "include": [
+    "**/*.ts"
+  ],
+  "exclude": [
+    "**/node_modules/**",
+    "**/__tests__/**",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/*.lock",
+    "**/dist/**",
+    "**/gemini_test/**",
+    "**/openrouter_benchmark/**"
+  ],
+  "maxFileSize": 50000,
+  "maxContextTokens": 80000
+}

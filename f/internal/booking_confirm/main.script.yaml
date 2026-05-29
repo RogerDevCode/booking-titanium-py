@@ -1,0 +1,43 @@
+summary: ''
+description: ''
+lock: '!inline f/internal/booking_confirm/main.script.lock'
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    version:
+      type: integer
+      description: ''
+      default: null
+    chat_id:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    client_id:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    pg_url:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    provider_id:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    redis_url:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    start_time:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+  required: []

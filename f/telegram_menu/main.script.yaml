@@ -1,0 +1,26 @@
+summary: ''
+description: ''
+lock: '!inline f/telegram_menu/main.script.lock'
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    action:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    chat_id:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    user_input:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+  required:
+    - action
+    - chat_id

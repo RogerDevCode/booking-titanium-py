@@ -1,0 +1,38 @@
+summary: ''
+description: ''
+lock: '!inline f/botilleria_webhook/main.script.lock'
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    bot_token:
+      type: string
+      description: ''
+      default: ''
+      originalType: string
+    message_chat_id:
+      type: integer
+      description: ''
+      default: null
+    message_from_id:
+      type: integer
+      description: ''
+      default: null
+    message_from_username:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    message_text:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    update_id:
+      type: integer
+      description: ''
+      default: null
+  required:
+    - update_id
+    - message_chat_id

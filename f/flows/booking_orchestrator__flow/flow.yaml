@@ -1,0 +1,65 @@
+summary: Booking Orchestrator Flow (v1.0)
+description: >
+  Orquesta las acciones de booking (crear, cancelar, reagendar, listar) basadas
+  en la intención detectada por el AI Agent.
+
+  Este flujo es el punto de entrada canónico para las acciones de negocio.
+value:
+  modules:
+    - id: orchestrator_logic
+      summary: Lógica de orquestación de booking
+      value:
+        type: script
+        input_transforms:
+          client_id:
+            type: javascript
+            expr: flow_input.client_id
+          entities:
+            type: javascript
+            expr: flow_input.entities || {}
+          intent:
+            type: javascript
+            expr: flow_input.intent
+          provider_id:
+            type: javascript
+            expr: flow_input.provider_id
+          service_id:
+            type: javascript
+            expr: flow_input.service_id
+          telegram_chat_id:
+            type: javascript
+            expr: flow_input.telegram_chat_id
+          telegram_name:
+            type: javascript
+            expr: flow_input.telegram_name
+          tenant_id:
+            type: javascript
+            expr: flow_input.tenant_id
+        path: f/booking_orchestrator/main
+schema:
+  type: object
+  properties:
+    client_id:
+      type: string
+      description: ID del cliente (opcional)
+    entities:
+      type: object
+      description: Entidades extraídas por el AI Agent
+    intent:
+      type: string
+      description: Intención clasificada (AutorizadoIntent)
+    provider_id:
+      type: string
+      description: ID del proveedor (opcional)
+    service_id:
+      type: string
+      description: ID del servicio (opcional)
+    telegram_chat_id:
+      type: string
+      description: ID de chat de Telegram (opcional)
+    telegram_name:
+      type: string
+      description: Nombre de usuario de Telegram (opcional)
+    tenant_id:
+      type: string
+      description: ID del tenant (opcional)

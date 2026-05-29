@@ -1,0 +1,5 @@
+# py: 3.13
+beartype==0.22.9
+greenlet==3.5.1
+sqlalchemy==2.0.49
+typing-extensions==4.15.0

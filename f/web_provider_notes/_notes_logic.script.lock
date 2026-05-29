@@ -1,0 +1,9 @@
+# py: 3.13
+annotated-types==0.7.0
+cffi==2.0.0
+cryptography==47.0.0
+pycparser==3.0
+pydantic==2.13.3
+pydantic-core==2.46.3
+typing-extensions==4.15.0
+typing-inspection==0.4.2

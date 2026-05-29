@@ -20,8 +20,7 @@ Python 3.13, FastAPI, asyncpg, Redis, Pydantic v2.
 
 ## Vocabulario del dominio
 Usar "reserva" o "hora", no "cita".
----
-
+NOTA: Los archivos en el directorio @f/ son obsoletos, pertenecen al viejo proyecto y únicamente sirven como referencia histórica para la construcción del nuevo sistema. Estos archivos NO deben ser utilizados directamente en el desarrollo actual del proyecto Titanium Booking. Toda la implementación debe basarse exclusivamente en las guías y estructuras definidas en este documento y en los directorios fuera de @f/.
 
 # PROJECT SYNTHESIS: TITANIUM BOOKING ENGINE
 
@@ -134,3 +133,19 @@ To rebuild this project, focus on the following directory responsibilities:
 - `f/internal/booking_fsm/`: State definitions and valid transitions.
 - `f/internal/_db_client.py`: Optimized connection pooling and execution.
 - `f/internal/_conversation_tx.py`: Transactional state management with versioning.
+
+## CALLBACK INTEGRITY (MANDATORY)
+
+All inline keyboard buttons MUST use versioned callback_data:
+  encode(state.version, action, value) → from app.telegram.callback
+
+FSM Router MUST reject callbacks where payload.version != state.version.
+
+version field increments ONLY inside transition_to() — never manually.
+
+message_id is retained for cosmetic UX edits only.
+Plain callback_data strings in handlers are FORBIDDEN after this refactor.
+
+## TODOs & REVIEWS
+- **TODO:** Revisar y refinar la regla de negocio "El Profesional Cancela su Tarde" (Cancelación masiva por proveedor, regeneración de slots y notificación con rescheduler VIP para pacientes afectados).
+- **TODO:** Desarrollar un frontend administrativo que permita a los auxiliares médicos buscar pacientes mediante RUT, teléfono o nombre completo. (El RUT es opcional en el registro).

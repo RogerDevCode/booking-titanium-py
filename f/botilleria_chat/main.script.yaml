@@ -1,0 +1,41 @@
+summary: ''
+description: ''
+lock: '!inline f/botilleria_chat/main.script.lock'
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    channel_identifier:
+      type: string
+      description: ''
+      default: ''
+      originalType: string
+    message:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    platform:
+      type: string
+      description: ''
+      default: telegram
+      originalType: string
+    session_id:
+      type: string
+      description: ''
+      default: ''
+      originalType: string
+    tenant_id:
+      type: string
+      description: ''
+      default: ''
+      originalType: string
+    user_id:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+  required:
+    - user_id
+    - message

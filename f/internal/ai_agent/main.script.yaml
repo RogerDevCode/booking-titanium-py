@@ -1,0 +1,45 @@
+summary: ''
+description: ''
+lock: '!inline f/internal/ai_agent/main.script.lock'
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    chat_id:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    conversation_state:
+      type: ''
+      description: ''
+      default: null
+    groq_api_key:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    openrouter_api_key:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    pg_url:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    provider_id:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    text:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+  required:
+    - chat_id
+    - text

@@ -1,0 +1,35 @@
+summary: ''
+description: ''
+lock: '!inline f/internal/client_register/main.script.lock'
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    name:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    client_id:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    email:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    pg_url:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    phone:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+  required:
+    - client_id

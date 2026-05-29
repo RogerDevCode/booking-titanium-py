@@ -1,0 +1,15 @@
+summary: ''
+description: ''
+lock: '!inline f/internal/seed_test_provider.script.lock'
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    pg_url:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+  required:
+    - pg_url

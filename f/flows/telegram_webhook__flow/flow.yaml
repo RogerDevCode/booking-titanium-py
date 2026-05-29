@@ -1,0 +1,364 @@
+summary: Telegram Webhook - Phase C (AI Router Split)
+description: >
+  Fase C: ai_agent clasifica intent + requiere FSM. Bifurcación: fsm_router para
+  booking intents, conversational_router para todo lo demás.
+value:
+  modules:
+    - id: webhook_trigger
+      summary: Telegram Webhook Trigger
+      value:
+        type: rawscript
+        content: '!inline telegram_webhook_trigger.py'
+        input_transforms:
+          webhook_payload:
+            type: javascript
+            expr: flow_input
+        lock: '!inline telegram_webhook_trigger.lock'
+        language: python3
+    - id: telegram_deduplicate
+      summary: Deduplicar webhook por update_id
+      value:
+        type: script
+        input_transforms:
+          chat_id:
+            type: javascript
+            expr: results.webhook_trigger.chat_id
+          redis_url:
+            type: javascript
+            expr: variable("u/admin/REDIS_URL")
+          update_id:
+            type: javascript
+            expr: results.webhook_trigger.update_id
+        path: f/internal/telegram_deduplicate/main
+      skip_if:
+        expr: '!results.webhook_trigger.chat_id'
+    - id: message_preprocessor
+      summary: Normalizar texto — modismos chilenos + corrección ortográfica
+      value:
+        type: script
+        input_transforms:
+          data:
+            type: javascript
+            expr: '{"raw_text": results.webhook_trigger.canonical_text}'
+        path: f/message_preprocessor/main
+      skip_if:
+        expr: >-
+          !results.webhook_trigger.chat_id ||
+          results.telegram_deduplicate.duplicate ||
+          results.webhook_trigger.event_kind !== "message" ||
+          results.webhook_trigger.text_kind !== "plain_text" ||
+          /^\d+$/.test((results.webhook_trigger.canonical_text || "").trim())
+    - id: get_conversation_state
+      summary: Obtener estado conversacional de Redis
+      value:
+        type: script
+        input_transforms:
+          chat_id:
+            type: javascript
+            expr: results.webhook_trigger.chat_id
+          redis_url:
+            type: javascript
+            expr: variable("u/admin/REDIS_URL")
+          pg_url:
+            type: javascript
+            expr: variable("u/admin/DATABASE_URL")
+        path: f/internal/conversation_get/main
+      skip_if:
+        expr: '!results.webhook_trigger.chat_id ||
+          results.telegram_deduplicate.duplicate ||
+          results.message_preprocessor?.data?.security_scan?.threat_detected ===
+          true'
+    - id: telegram_auto_register
+      summary: Registrar/resolver usuario Telegram → user_id en DB
+      value:
+        type: script
+        input_transforms:
+          args:
+            type: javascript
+            expr: |-
+              { "chat_id": results.webhook_trigger.chat_id,
+                "first_name": results.webhook_trigger.first_name,
+                "last_name": results.webhook_trigger.last_name || null,
+                "username": results.webhook_trigger.username || null,
+                "pg_url": variable("u/admin/DATABASE_URL") }
+        path: f/telegram_auto_register/main
+      skip_if:
+        expr: '!results.webhook_trigger.chat_id ||
+          results.telegram_deduplicate.duplicate ||
+          results.message_preprocessor?.data?.security_scan?.threat_detected ===
+          true'
+    - id: ai_agent
+      summary: Clasificar intención — social + TF-IDF + LLM
+      value:
+        type: script
+        input_transforms:
+          chat_id:
+            type: javascript
+            expr: results.webhook_trigger.chat_id
+          conversation_state:
+            type: javascript
+            expr: >-
+              { "active_flow": results.get_conversation_state.data?.active_flow || "none",
+                "flow_step": 0,
+                "pending_data": {},
+                "booking_state_name": results.get_conversation_state.data?.booking_state?.name || "idle" }
+          groq_api_key:
+            type: javascript
+            expr: variable("u/admin/GROQ_API_KEY")
+          openrouter_api_key:
+            type: javascript
+            expr: variable("u/admin/OPENROUTER_API_KEY")
+          pg_url:
+            type: javascript
+            expr: variable("u/admin/DATABASE_URL")
+          provider_id:
+            type: javascript
+            expr: 'null'
+          text:
+            type: javascript
+            expr: results.message_preprocessor?.cleaned_text ||
+              results.webhook_trigger.canonical_text || ""
+        path: f/internal/ai_agent/main
+      skip_if:
+        expr: >-
+          !results.webhook_trigger.chat_id ||
+          results.telegram_deduplicate.duplicate ||
+          results.webhook_trigger.event_kind !== "message" ||
+          results.webhook_trigger.text_kind !== "plain_text" ||
+          results.message_preprocessor?.data?.security_scan?.threat_detected === true ||
+          /^\d+$/.test((results.webhook_trigger.canonical_text || "").trim())
+    - id: booking_prefetch
+      summary: Pre-fetch especialidades/doctores segun estado FSM actual
+      value:
+        type: script
+        input_transforms:
+          booking_draft:
+            type: javascript
+            expr: results.get_conversation_state.data?.booking_draft || null
+          booking_state:
+            type: javascript
+            expr: results.get_conversation_state.data?.booking_state || null
+          client_id:
+            type: javascript
+            expr: results.telegram_auto_register.client_id || null
+          pg_url:
+            type: javascript
+            expr: variable("u/admin/DATABASE_URL")
+          user_input:
+            type: javascript
+            expr: results.message_preprocessor?.cleaned_text ||
+              results.webhook_trigger.canonical_text || null
+        path: f/internal/booking_prefetch/main
+      skip_if:
+        expr: results.telegram_deduplicate.duplicate || (results.ai_agent?.data &&
+          results.ai_agent.data.requires_fsm_routing === false) ||
+          results.message_preprocessor?.data?.security_scan?.threat_detected ===
+          true
+    - id: fsm_router
+      summary: FSM booking — solo transiciones de estado
+      value:
+        type: script
+        input_transforms:
+          args:
+            type: javascript
+            expr: >-
+              { "chat_id": results.webhook_trigger.chat_id,
+                "user_input": results.message_preprocessor?.cleaned_text || results.webhook_trigger.canonical_text,
+                "state": results.get_conversation_state.data || {},
+                "items": results.booking_prefetch?.items || [],
+                "phone": results.telegram_auto_register?.phone ?? null,
+                "client_name": results.telegram_auto_register?.name ?? null,
+                "prefetch_block_reason": results.booking_prefetch?.block_reason || null,
+                "client_id": results.telegram_auto_register?.client_id ?? null,
+                "callback_message_id": results.webhook_trigger.callback_message_id ?? null,
+                "update_id": results.webhook_trigger.update_id,
+                "pg_url": variable("u/admin/DATABASE_URL"),
+                "ai_intent": results.ai_agent?.data?.intent ?? null,
+                "ai_confidence": results.ai_agent?.data?.confidence ?? null,
+                "ai_entities": results.ai_agent?.data?.entities || {},
+                "requires_fsm_routing": results.ai_agent?.data?.requires_fsm_routing ?? true }
+        path: f/internal/fsm_router/main
+      skip_if:
+        expr: results.telegram_deduplicate.duplicate || (results.ai_agent?.data &&
+          results.ai_agent.data.requires_fsm_routing === false) ||
+          results.message_preprocessor?.data?.security_scan?.threat_detected ===
+          true
+    - id: conversational_router
+      summary: Respuesta conversacional — no-FSM
+      value:
+        type: script
+        input_transforms:
+          args:
+            type: javascript
+            expr: >-
+              { "chat_id": results.webhook_trigger.chat_id,
+                "user_input": results.message_preprocessor?.cleaned_text || results.webhook_trigger.canonical_text,
+                "ai_intent": results.ai_agent?.data?.intent || "desconocido",
+                "ai_confidence": results.ai_agent?.data?.confidence || 0.0,
+                "ai_response": results.ai_agent?.data?.ai_response || null,
+                "client_id": results.telegram_auto_register?.client_id ?? null,
+                "client_name": results.telegram_auto_register?.name ?? null,
+                "phone": results.telegram_auto_register?.phone ?? null,
+                "pg_url": variable("u/admin/DATABASE_URL"),
+                "current_state_name": results.get_conversation_state.data?.booking_state?.name || "idle",
+                "session_id": results.get_conversation_state.data?.booking_state?.session_id || null }
+        path: f/internal/conversational_router/main
+      skip_if:
+        expr: >-
+          results.webhook_trigger.event_kind !== "message" ||
+          results.telegram_deduplicate.duplicate ||
+          results.fsm_router?.data?.handled === true
+    - id: client_register
+      summary: Actualizar datos del cliente tras registro
+      value:
+        type: script
+        input_transforms:
+          name:
+            type: javascript
+            expr: results.fsm_router?.data?.registration_data?.name ?? null
+          client_id:
+            type: javascript
+            expr: results.telegram_auto_register.client_id
+          email:
+            type: javascript
+            expr: results.fsm_router?.data?.registration_data?.email ?? null
+          pg_url:
+            type: javascript
+            expr: variable("u/admin/DATABASE_URL")
+          phone:
+            type: javascript
+            expr: results.fsm_router?.data?.registration_data?.phone ?? null
+        path: f/internal/client_register/main
+      skip_if:
+        expr: '!results.fsm_router?.data?.registration_data ||
+          results.message_preprocessor?.data?.security_scan?.threat_detected ===
+          true'
+    - id: booking_commit
+      summary: Crear cita real en DB cuando usuario confirma desde estado confirming
+      value:
+        type: script
+        input_transforms:
+          chat_id:
+            type: javascript
+            expr: results.webhook_trigger.chat_id
+          client_id:
+            type: javascript
+            expr: results.telegram_auto_register.client_id
+          pg_url:
+            type: javascript
+            expr: variable("u/admin/DATABASE_URL")
+          provider_id:
+            type: javascript
+            expr: results.get_conversation_state.data?.booking_state?.doctorId
+          start_time:
+            type: javascript
+            expr: results.get_conversation_state.data?.booking_state?.draft?.start_time
+          version:
+            type: javascript
+            expr: results.get_conversation_state.data?.version || null
+        path: f/internal/booking_confirm/main
+      skip_if:
+        expr: >-
+          !(results.get_conversation_state?.data?.booking_state?.name ===
+          "confirming" &&
+            results.fsm_router?.data?.nextState?.name === "idle" &&
+            !results.telegram_deduplicate?.duplicate) ||
+          results.message_preprocessor?.data?.security_scan?.threat_detected ===
+          true
+    - id: update_conversation_state
+      summary: Persistir nuevo estado en Redis
+      value:
+        type: script
+        input_transforms:
+          args:
+            type: javascript
+            expr: >-
+              { "chat_id": results.webhook_trigger.chat_id,
+                "booking_state": results.fsm_router?.data?.nextState || results.conversational_router?.data?.nextState,
+                "active_flow": results.fsm_router?.data?.active_flow || null,
+                "booking_draft": results.fsm_router?.data?.nextDraft ?? null,
+                "version": results.get_conversation_state.data?.version || null,
+                "pending_data": {
+                  "router_handled": results.fsm_router?.data?.handled || results.conversational_router?.data?.handled,
+                  "text_kind": results.webhook_trigger.text_kind,
+                  "user_id": results.telegram_auto_register?.user_id || null,
+                  "client_id": results.telegram_auto_register?.client_id || null
+                } }
+          redis_url:
+            type: javascript
+            expr: variable("u/admin/REDIS_URL")
+          pg_url:
+            type: javascript
+            expr: variable("u/admin/DATABASE_URL")
+        path: f/internal/conversation_update/main
+      skip_if:
+        expr: '!results.webhook_trigger.chat_id ||
+          results.telegram_deduplicate.duplicate ||
+          results.message_preprocessor?.data?.security_scan?.threat_detected === true ||
+          (results.get_conversation_state?.data?.booking_state?.name === "confirming" &&
+           results.fsm_router?.data?.nextState?.name === "idle")'
+    - id: send_telegram_response
+      summary: Enviar respuesta a Telegram
+      value:
+        type: script
+        input_transforms:
+          bot_token:
+            type: javascript
+            expr: variable("u/admin/TELEGRAM_BOT_TOKEN")
+          chat_id:
+            type: javascript
+            expr: results.webhook_trigger.chat_id
+          inline_buttons_json:
+            type: javascript
+            expr: 'results.fsm_router?.data?.inline_buttons ?
+              JSON.stringify(results.fsm_router.data.inline_buttons) :
+              (results.conversational_router?.data?.inline_buttons ?
+              JSON.stringify(results.conversational_router.data.inline_buttons) : null)'
+          message_id:
+            type: javascript
+            expr: 'results.fsm_router?.data?.edit_message ?
+              results.webhook_trigger.callback_message_id : null'
+          mode:
+            type: javascript
+            expr: 'results.fsm_router?.data?.edit_message ? "edit_message" : "send_message"'
+          text:
+            type: javascript
+            expr: |-
+              (results.message_preprocessor?.data?.security_scan?.threat_detected === true) ?
+                ("🚫 Lo siento, tu mensaje ha sido bloqueado por políticas de seguridad.")
+              : (results.booking_commit?.success) ?
+                ("✅ *Reserva Confirmada*\n\n" +
+                 "📋 " + results.booking_commit.service_name + " con " + results.booking_commit.provider_name + "\n" +
+                 "🆔 Ref: `" + results.booking_commit.booking_short_id + "`\n\n" +
+                 "Recibirás un recordatorio antes de tu hora.\n\n📱 *Menú Principal*")
+              : (results.booking_commit?.error) ?
+                ("❌ No se pudo confirmar la cita.\n\n" +
+                 (results.booking_commit.user_message || "Por favor intenta de nuevo en unos minutos."))
+              : (results.fsm_router?.data?.handled && results.fsm_router?.data?.response_text) ?
+                results.fsm_router?.data?.response_text
+              : (results.conversational_router?.data?.handled && results.conversational_router?.data?.response_text) ?
+                results.conversational_router?.data?.response_text
+              : "Lo siento, no entendí tu mensaje. 😊\n\nEscribe /start para ver el menú principal."
+        path: f/telegram_send/main
+      skip_if:
+        expr: '!results.webhook_trigger.chat_id ||
+          results.telegram_deduplicate.duplicate'
+  failure_module:
+    id: flow_error_handler
+    summary: Enviar mensaje de error al usuario si el flow falla
+    value:
+      type: rawscript
+      content: '!inline enviar_mensaje_de_error_al_usuario_si_el_flow_falla.py'
+      input_transforms:
+        bot_token:
+          type: javascript
+          expr: variable("u/admin/TELEGRAM_BOT_TOKEN")
+        error:
+          type: javascript
+          expr: error
+        flow_input:
+          type: javascript
+          expr: flow_input
+      lock: '!inline enviar_mensaje_de_error_al_usuario_si_el_flow_falla.lock'
+      language: python3
+tag: interactive

@@ -1,0 +1,8 @@
+# py: 3.13
+annotated-types==0.7.0
+beartype==0.22.9
+pydantic==2.13.4
+pydantic-core==2.46.4
+returns==0.27.0
+typing-extensions==4.15.0
+typing-inspection==0.4.2

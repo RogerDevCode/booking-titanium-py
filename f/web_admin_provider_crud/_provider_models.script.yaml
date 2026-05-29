@@ -1,0 +1,9 @@
+summary: ''
+description: ''
+lock: '!inline f/web_admin_provider_crud/_provider_models.script.lock'
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties: {}
+  required: []

@@ -1,0 +1,16 @@
+summary: null
+description: null
+authentication_method: none
+authentication_resource_path: null
+http_method: post
+is_flow: true
+is_static_website: false
+mode: enabled
+raw_string: false
+request_type: sync
+route_path: telegram
+route_path_key: telegram
+script_path: f/flows/telegram_webhook__flow
+static_asset_config: null
+workspaced_route: false
+wrap_body: true

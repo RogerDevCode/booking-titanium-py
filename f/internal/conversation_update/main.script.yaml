@@ -1,0 +1,25 @@
+summary: ''
+description: ''
+lock: '!inline f/internal/conversation_update/main.script.lock'
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    args:
+      type: object
+      description: ''
+      default: null
+      format: resource-object
+    pg_url:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+    redis_url:
+      type: string
+      description: ''
+      default: null
+      originalType: string
+  required:
+    - args

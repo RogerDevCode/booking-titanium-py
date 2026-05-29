@@ -1,0 +1,157 @@
+# ============================================================================
+# SEED_01_DAILY_PROVISIONING - Windmill Flow
+# ============================================================================
+# This flow creates booking slots in sync between DB and Google Calendar
+# Provisioning flow for daily system tasks
+# 
+# Usage:
+#   - Trigger: Manual, Schedule (daily), or HTTP Webhook
+#   - Input: date, provider_id, service_id, hours, duration_minutes, tz_offset
+#   - Output: total_slots, created, duplicates, failed, unavailable
+# ============================================================================
+
+summary: Daily provisioning of booking slots (DB + GCal sync)
+description: |
+  Creates booking slots for a specific date in synchronization between
+  the database and Google Calendar. Validates input, generates time slots,
+  checks availability, acquires locks, and creates bookings with GCal sync.
+  
+  Features:
+  - Input validation (date, UUIDs, hours, timezone)
+  - Parallel slot generation
+  - Distributed locking to prevent double-booking
+  - Idempotency support
+  - GCal bidirectional sync
+  - Error handling and retry logic
+
+tags:
+  - seed
+  - provisioning
+  - gcal
+  - booking
+  - sync
+
+inputs:
+  date:
+    type: string
+    description: Date to seed (YYYY-MM-DD format)
+    default: tomorrow
+    required: true
+    
+  provider_id:
+    type: string
+    description: Provider UUID
+    required: true
+    
+  service_id:
+    type: string
+    description: Service UUID
+    required: true
+    
+  chat_id:
+    type: string
+    description: User/chat identifier
+    default: "seed_system"
+    required: false
+    
+  hours:
+    type: array
+    description: Hours to seed (0-23)
+    default: [9, 10, 11, 12, 13, 14, 15, 16]
+    required: false
+    
+  duration_minutes:
+    type: integer
+    description: Duration of each slot in minutes
+    default: 60
+    required: false
+    
+  tz_offset:
+    type: string
+    description: Timezone offset (+HH:MM or -HH:MM)
+    default: "-03:00"
+    required: false
+    
+  source:
+    type: string
+    description: Source identifier
+    default: "SEED_01"
+    required: false
+
+steps:
+  # Step 1: Validate and prepare input
+  - name: validate_input
+    script: f/seed_daily_provisioning
+    inputs:
+      date: $inputs.date
+      provider_id: $inputs.provider_id
+      service_id: $inputs.service_id
+      chat_id: $inputs.chat_id
+      hours: $inputs.hours
+      duration_minutes: $inputs.duration_minutes
+      tz_offset: $inputs.tz_offset
+      source: $inputs.source
+    retry: 2
+    
+  # Step 2: Check if validation succeeded
+  - name: check_validation
+    script: f/internal/flow_guard
+    inputs:
+      condition: $steps.validate_input.result.success
+      error_message: "Input validation failed"
+    continue_on_error: false
+    
+  # Step 3: Process slots (in parallel for better performance)
+  # Note: Windmill supports parallel execution with 'parallel' keyword
+  - name: process_slots
+    parallel: true
+    max_parallel: 5  # Limit concurrent slot processing
+    script: f/seed_process_slot
+    inputs:
+      # This would iterate over generated slots from step 1
+      # In production, use Windmill's batch processing
+      slots: $steps.validate_input.result.slots
+    retry: 3
+    
+  # Step 4: Aggregate results
+  - name: aggregate_results
+    script: f/internal/aggregate_seed_results
+    inputs:
+      slot_results: $steps.process_slots.results
+    retry: 1
+    
+  # Step 5: Send notification (optional)
+  - name: send_notification
+    script: f/telegram_send
+    inputs:
+      chat_id: $inputs.chat_id
+      message_type: "seed_completed"
+      booking_details: $steps.aggregate_results.result
+    continue_on_error: true  # Don't fail flow if notification fails
+    
+outputs:
+  success: $steps.aggregate_results.result.success
+  total_slots: $steps.aggregate_results.result.total_slots
+  created: $steps.aggregate_results.result.created
+  duplicates: $steps.aggregate_results.result.duplicates
+  failed: $steps.aggregate_results.result.failed
+  unavailable: $steps.aggregate_results.result.unavailable
+  booking_ids: $steps.aggregate_results.result.booking_ids
+  errors: $steps.aggregate_results.result.errors
+
+# Flow settings
+settings:
+  timeout: 300  # 5 minutes timeout
+  concurrent_execution: false  # Prevent concurrent seed operations
+  queue: seed_operations  # Dedicated queue for seed operations
+  
+# Scheduling (optional - enable for daily automatic seeding)
+# schedule:
+#   cron: "0 2 * * *"  # Daily at 2 AM
+#   timezone: "America/Argentina/Buenos_Aires"
+
+# Webhook (optional - enable for external triggering)
+# webhook:
+#   path: "seed-daily-provisioning"
+#   methods: ["POST"]
+#   auth: "bearer_token"  # Use Windmill's built-in auth

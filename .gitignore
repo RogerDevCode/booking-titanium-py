@@ -1,10 +1,35 @@
-# Python-generated files
+# Python
 __pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+.env
+.env.*
 
-# Virtual environments
-.venv
+# Logs & Debugging
+*.log
+fuzz_error*
+image.png
+*.jpg
+*.jpeg
+*.png
+*.gif
+.hypothesis/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+
+# OS/IDE
+.DS_Store
+.vscode/
+.idea/
+.antigravitycli/
+
+# Project Specific
+tests/
+frontend_provider/
+docs/
