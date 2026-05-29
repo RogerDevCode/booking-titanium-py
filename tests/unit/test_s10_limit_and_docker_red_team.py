@@ -81,7 +81,8 @@ class TestS10SlotLimit:
             captured_args.extend(args)
             return []
 
-        repo = BookingRepository()
+        from unittest.mock import AsyncMock
+        repo = BookingRepository(db=AsyncMock())
         with patch("app.db.repositories.booking_repo.db_client.fetch", side_effect=fake_fetch):
             await repo.get_available_slots("provider-xyz", limit=3)
 
@@ -107,7 +108,8 @@ class TestS10SlotLimit:
             captured_args.extend(args)
             return []
 
-        repo = BookingRepository()
+        from unittest.mock import AsyncMock
+        repo = BookingRepository(db=AsyncMock())
         with patch("app.db.repositories.booking_repo.db_client.fetch", side_effect=fake_fetch):
             await repo.get_available_slots("provider-abc")
 

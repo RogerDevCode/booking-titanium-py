@@ -257,7 +257,7 @@ class RAGServiceProtocol(Protocol):
     ) -> list[Any]: ...
 
     @staticmethod
-    def format_context(entries: list[Any]) -> str:
+    def format_context(entries: list) -> str:
         """Formatea las entradas de la KB en un bloque de contexto para el LLM."""
         ...
 

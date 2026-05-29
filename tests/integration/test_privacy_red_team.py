@@ -1,6 +1,8 @@
+import pytest
 from app.pipeline.preprocessor import MessagePreprocessor
 
-def test_rut_anonymization_evasion():
+@pytest.mark.asyncio
+async def test_rut_anonymization_evasion(integration_container, clean_db_and_redis):
     """
     Red Team Test to ensure that PII (RUTs) are masked correctly, 
     even if the user tries to evade the filter with different formats.
@@ -56,7 +58,8 @@ def test_rut_anonymization_evasion():
         # If SymSpell messes it up, we might need to add "rut" to the SymSpell CUSTOM_WORDS dictionary!
         assert result.cleaned_text == expected_clean, f"Failed on '{raw}': got '{result.cleaned_text}'"
 
-def test_no_leakage():
+@pytest.mark.asyncio
+async def test_no_leakage(integration_container, clean_db_and_redis):
     preprocessor = MessagePreprocessor()
     raw = "el paciente con rut 15.666.777-8 tiene covid"
     result = preprocessor.preprocess(raw)

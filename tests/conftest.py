@@ -1,3 +1,7 @@
+from app.core.config import settings
+import pytest_asyncio
+import os
+from app.container import build_container
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
@@ -9,7 +13,6 @@ from app.domain.protocols import (
     SlotEngineProtocol, NotificationServiceProtocol
 )
 from app.container import Container
-from app.core.config import settings
 from app.pipeline.preprocessor import MessagePreprocessor
 from app.pipeline.classifier import IntentClassifier
 from app.fsm.main import FSMRouter
@@ -121,3 +124,49 @@ def fake_container(
         ai_service=fake_ai_service,
         rag_service=fake_rag_service
     )
+
+
+@pytest_asyncio.fixture(scope='function')
+async def integration_container():
+    # Use standard docker db ports for integration testing locally
+    settings.DATABASE_URL = os.getenv('TEST_DATABASE_URL', 'postgresql://booking:booking@localhost:5432/booking')
+    settings.REDIS_URL = os.getenv('TEST_REDIS_URL', 'redis://localhost:6379')
+    
+    container = build_container()
+    await container.db_client.connect()
+    await container.redis_client.connect()
+    
+    # Run the schema creation
+    with open('tests/schema.sql', 'r') as sql_file:
+        schema = sql_file.read()
+        
+    async with container.db_client._pool.acquire() as conn:
+        await conn.execute(schema)
+        
+    yield container
+    
+    await container.redis_client.disconnect()
+    await container.db_client.disconnect()
+
+@pytest_asyncio.fixture(scope='function')
+async def clean_db_and_redis(integration_container):
+    # Truncate tables and flush redis
+    async with integration_container.db_client._pool.acquire() as conn:
+        await conn.execute("""
+            TRUNCATE TABLE 
+                outbox_messages, 
+                waitlist_notifications,
+                waitlist,
+                bookings,
+                slots,
+                users,
+                conversation_states,
+                knowledge_base,
+                provider_schedules,
+                provider_exceptions
+            CASCADE;
+        """)
+        
+    await integration_container.redis_client.client.flushdb()
+    yield
+

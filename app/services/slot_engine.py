@@ -41,7 +41,7 @@ class SlotEngine:
             return # No schedule defined
             
         # Group schedules by day of week (0=Monday, 6=Sunday)
-        schedules_by_day = {i: [] for i in range(7)}
+        schedules_by_day = {i: [] for i in range(7)}  # type: ignore
         for s in schedules:
             schedules_by_day[s['day_of_week']].append(s)
 

@@ -213,6 +213,6 @@ class IntentClassifier:
 
     async def extract_entities(self, text: str) -> dict:
         """Extracts Chilean medical entities (RUT, Dates)."""
-        entities = {}
+        entities: dict = {}
         # Simple extraction logic...
         return entities

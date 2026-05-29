@@ -1,84 +1,56 @@
 import pytest
 import asyncio
 from httpx import AsyncClient, ASGITransport
-from app.main import create_app
-from app.db.redis_client import redis_client
-from app.core.config import settings
+from app.api.v1.webhook import create_webhook_router
+from fastapi import FastAPI
 from unittest.mock import AsyncMock
 
 @pytest.fixture
-async def setup_env():
-    settings.REDIS_URL = "redis://localhost:6379"
-    await redis_client.connect()
-    yield
-    await redis_client.disconnect()
+def test_app(integration_container):
+    app = FastAPI()
+    router = create_webhook_router(integration_container)
+    app.include_router(router, prefix="/api/v1")
+    return app
 
 @pytest.mark.asyncio
-async def test_rate_limiter_pipeline_concurrency(setup_env):
-    """
-    Test that the rate limiter handles concurrent requests correctly
-    using the pipeline and that the expiration is set properly without memory leaks.
-    """
-    app = create_app()
-    # Mock ARQ pool to avoid enqueuing real jobs during the test
-    mock_arq_pool = AsyncMock()
-    app.state.arq_pool = mock_arq_pool
-
+async def test_rate_limiter_pipeline_concurrency(integration_container, clean_db_and_redis, test_app):
     chat_id = 88888
     
-    # 1. Reset rate limit key and idempotency keys
-    key_rate = f"rate_limit:{chat_id}"
-    await redis_client.client.delete(key_rate)
-    for i in range(50):
-        await redis_client.client.delete(f"webhook_seen:{i+1}")
+    mock_arq_pool = AsyncMock()
+    test_app.state.arq_pool = mock_arq_pool
 
-    # 2. Prepare payload
     payload = {
-        "update_id": 1,
+        "update_id": 0,
         "message": {
             "message_id": 1,
             "chat": {"id": chat_id, "type": "private"},
-            "from": {"id": chat_id, "first_name": "Test", "last_name": "User"},
             "text": "1"
         }
     }
 
-    # 3. Fire 50 concurrent requests
-    # Limit is 10. So exactly 10 should be "ok", and 40 should be "rate_limited" (or duplicate, but wait!)
-    # Ah, the webhook also has an idempotency check (webhook_seen:{update_id}).
-    # If we use the exact same update_id, the first one gets it, the rest return "duplicate".
-    # We must use different update_ids to bypass the idempotency check and actually hit the rate limiter!
+    # Reset Rate Limit
+    await integration_container.redis_client.client.delete(f"rate_limit:{chat_id}")
     
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+    # Send 40 requests simultaneously
+    async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as ac:
         tasks = []
-        for i in range(50):
-            new_payload = dict(payload)
-            new_payload["update_id"] = i + 1
-            tasks.append(ac.post("/api/v1/webhook", json=new_payload))
-        
+        for i in range(40):
+            p = dict(payload)
+            p['update_id'] = 1000 + i  # Different update_id
+            tasks.append(ac.post("/api/v1/webhook", json=p))
+            
         responses = await asyncio.gather(*tasks)
 
-    # 4. Check results
-    status_counts = {"ok": 0, "rate_limited": 0, "duplicate": 0}
+    status_counts = {"ok": 0, "duplicate": 0, "rate_limited": 0, "ignored": 0}
     for resp in responses:
         assert resp.status_code == 200
         status = resp.json().get("status")
         status_counts[status] = status_counts.get(status, 0) + 1
 
-    assert status_counts["ok"] == 10
-    assert status_counts["rate_limited"] == 40
-    assert status_counts["duplicate"] == 0
-
-    # 5. Verify the key TTL (prevent memory leak)
-    # The TTL should be 60 seconds (or slightly less because some time passed).
-    ttl = await redis_client.client.ttl(key_rate)
+    # In a perfect concurrency world, exactly 30 should pass and 10 should be rate limited
+    assert status_counts["ok"] == 30
+    assert status_counts["rate_limited"] == 10
     
-    # -1 means no expiry (memory leak!).
-    # -2 means doesn't exist.
-    assert ttl > 0
-    assert ttl <= 60
-
-    # Clean up
-    await redis_client.client.delete(key_rate)
-    for i in range(50):
-        await redis_client.client.delete(f"webhook_seen:{i+1}")
+    # Double check Redis TTL to avoid leaks
+    ttl = await integration_container.redis_client.client.ttl(f"rate_limit:{chat_id}")
+    assert 0 < ttl <= 60

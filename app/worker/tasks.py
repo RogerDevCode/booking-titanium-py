@@ -100,8 +100,8 @@ def make_process_message(container):
                     from app.telegram.callback import decode
                     import asyncio
                 
-                    payload = decode(prep_result.cleaned_text)
-                    text_to_classify = payload.value if payload is not None else prep_result.cleaned_text
+                    cb_payload = decode(prep_result.cleaned_text)
+                    text_to_classify = cb_payload.value if cb_payload is not None else prep_result.cleaned_text
                 
                     classifier = container.classifier
                     try:
@@ -319,11 +319,11 @@ def make_generate_user_report_pdf(container):
             pdf = FPDF()
             pdf.add_page()
             pdf.set_font("Helvetica", size=16, style="B")
-            pdf.cell(0, 10, txt="Historial Medico Consolidado", new_x="LMARGIN", new_y="NEXT", align="C")
+            pdf.cell(0, 10, text="Historial Medico Consolidado", new_x="LMARGIN", new_y="NEXT", align="C")
             pdf.set_font("Helvetica", size=12)
-            pdf.cell(0, 10, txt=f"Paciente: {user.first_name} {user.last_name or ''}", new_x="LMARGIN", new_y="NEXT", align="C")
+            pdf.cell(0, 10, text=f"Paciente: {user.first_name} {user.last_name or ''}", new_x="LMARGIN", new_y="NEXT", align="C")
             if user.rut:
-                pdf.cell(0, 10, txt=f"RUT: {user.rut}", new_x="LMARGIN", new_y="NEXT", align="C")
+                pdf.cell(0, 10, text=f"RUT: {user.rut}", new_x="LMARGIN", new_y="NEXT", align="C")
         
             pdf.ln(10)
         

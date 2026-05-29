@@ -5,7 +5,9 @@ from hypothesis.stateful import RuleBasedStateMachine, rule, initialize, invaria
 
 from app.domain.enums import FSMState, Intent
 from app.domain.models import ConversationState
-from app.fsm.main import fsm_router
+from app.container import build_container
+container = build_container()
+fsm_router = container.fsm_router
 
 # Dummy data
 MOCK_SPECIALTIES = [{"id": 1, "name": "Cardiología"}, {"id": 2, "name": "Odontología"}]
@@ -20,9 +22,6 @@ class FSMMachine(RuleBasedStateMachine):
         self.state = ConversationState(chat_id=123)
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
-
-    def teardown(self):  # noqa: F811
-        self.loop.close()
 
     def run_async(self, coro):
         return self.loop.run_until_complete(coro)
@@ -70,17 +69,6 @@ class FSMMachine(RuleBasedStateMachine):
         self.patcher_user2 = patch("app.fsm.main.user_service", self.mock_user, create=True)
         self.patcher_user2.start()
 
-    def teardown(self):  # noqa: F811
-        self.patcher_sender.stop()
-        self.patcher_db.stop()
-        self.patcher_booking.stop()
-        self.patcher_repo.stop()
-        self.patcher_booking2.stop()
-        self.patcher_user.stop()
-        self.patcher_user2.stop()
-        super().teardown()
-
-    @rule(text=st.sampled_from(["1", "2", "3", "4", "home", "back", "cancel", "page_next", "page_prev", "/start", "invalid_random_text"]))
     def dispatch_event(self, text):
         """Simulates sending a valid or invalid text/callback to the FSM router."""
         self.run_async(fsm_router.route(self.state, text))

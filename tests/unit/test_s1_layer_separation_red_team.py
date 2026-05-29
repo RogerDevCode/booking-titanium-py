@@ -3,7 +3,7 @@ Red Team: S-1 — Capa Repositorio (Separación de Responsabilidades)
 
 Verifica que:
 1. booking_flow.py NO contiene imports directos de db_client ni SQL crudo.
-2. La función _get_doctor_id_for_booking usa exclusivamente booking_repo.
+2. La función _get_doctor_id_for_booking usa exclusivamente booking_repo.  # type: ignore
 3. El import de booking_repo está en el top-level del módulo (no lazy/circular).
 4. No existen funciones "helper" muertas que eludían la capa de servicio.
 """
@@ -83,16 +83,16 @@ class TestS1LayerSeparation:
 
     def test_get_doctor_id_uses_repo_not_db_client(self) -> None:
         """
-        S-1 RED TEAM: La función _get_doctor_id_for_booking debe delegar
+        S-1 RED TEAM: La función _get_doctor_id_for_booking debe delegar  # type: ignore
         exclusivamente a booking_repo, sin acceder a db_client.
         """
         import app.fsm.booking_flow as mod
-        src = inspect.getsource(mod._get_doctor_id_for_booking)
+        src = inspect.getsource(mod._get_doctor_id_for_booking)  # type: ignore
         assert "booking_repo" in src, (
-            "VIOLATION: _get_doctor_id_for_booking no usa booking_repo."
+            "VIOLATION: _get_doctor_id_for_booking no usa booking_repo."  # type: ignore
         )
         assert "db_client" not in src, (
-            "VIOLATION: _get_doctor_id_for_booking accede a db_client directamente."
+            "VIOLATION: _get_doctor_id_for_booking accede a db_client directamente."  # type: ignore
         )
         # Verificar que NO hay import lazy dentro de la función
         assert "from app.db" not in src, (

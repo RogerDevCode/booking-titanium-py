@@ -78,7 +78,7 @@ def patch(target, new=None, **kwargs):
             setattr(target_obj, attr_name, old_val)
 
 
-fsm_router = None
+fsm_router: Any = None
 
 @pytest.fixture
 def local_fsm_router():
@@ -617,15 +617,17 @@ class TestFSMRouter:
         state.context['preflight'] = {'intent': Intent.GET_REPORT}
         capture = _SendCapture()
         with patch('tests.unit.test_menus_completo.telegram_sender.send_message', new=AsyncMock(side_effect=capture.record)):
-            await fsm_router.route(state, '5')
+            await fsm_router.route( # type: ignore
+state, '5')
         assert 'reporte' in capture.last_text.lower() or 'PDF' in capture.last_text
 
     @pytest.mark.asyncio
     async def test_router_estado_desconocido_no_crashea(self) -> None:
         """Un estado no registrado → el router no lanza excepción (fallback silencioso)."""
         state = ConversationState(chat_id=1)
-        state.state = 'SELECTING_DATE'
-        await fsm_router.route(state, 'algo')
+        state.state = FSMState.SELECTING_DATE # type: ignore
+        await fsm_router.route( # type: ignore
+state, 'algo')
 
     @pytest.mark.asyncio
     async def test_router_start_always_resets_and_renders_menu(self) -> None:
@@ -636,7 +638,8 @@ class TestFSMRouter:
         state.message_id = 999
         capture = _SendCapture()
         with patch('tests.unit.test_menus_completo.telegram_sender.send_message', new=AsyncMock(side_effect=capture.record)), patch('tests.unit.test_menus_completo.fake_db.execute', new=AsyncMock()) as mock_execute:
-            await fsm_router.route(state, '/start')
+            await fsm_router.route( # type: ignore
+state, '/start')
         mock_execute.assert_called_once_with("UPDATE outbox_messages SET status = 'CANCELLED' WHERE chat_id = $1 AND status = 'PENDING'", state.chat_id)
         assert len(capture.calls) > 0
         menu_text = capture.calls[0]['text']

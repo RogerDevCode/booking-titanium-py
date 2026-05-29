@@ -43,10 +43,12 @@ def create_worker_settings(container: Container) -> type:
         max_jobs = 10
         job_timeout = container.settings.WORKER_TIMEOUT
 
+        @staticmethod
         async def on_startup(ctx: dict) -> None:
             await container.redis_client.connect()
             await container.db_client.connect()
 
+        @staticmethod
         async def on_shutdown(ctx: dict) -> None:
             await container.db_client.disconnect()
             await container.redis_client.disconnect()

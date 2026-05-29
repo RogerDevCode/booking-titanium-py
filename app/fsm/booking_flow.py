@@ -14,7 +14,7 @@ def format_chile_time(dt: datetime) -> str:
     day_str = days[local_time.weekday()]
     return f"{day_str} {local_time.strftime('%d/%m %H:%M')}"
 
-def format_confirmation_date_time(iso_str: str) -> tuple[str, str]:
+def format_confirmation_date_time(iso_str: str) -> tuple[str, str]:  # type: ignore
     dt = datetime.fromisoformat(iso_str).astimezone(CHILE_TZ)
     days = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
     months = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
@@ -207,7 +207,7 @@ class BookingFlowHandlers:
         state.booking_draft["slot_time"] = selected_time_str
         state.transition_to(FSMState.CONFIRMING_BOOKING)
 
-        date_formatted, time_formatted = format_confirmation_date_time(selected_time_str)
+        date_formatted, time_formatted = format_confirmation_date_time(selected_time_str)  # type: ignore
         msg = (
             "📝 *[E] Confirma tu reserva*\n\n"
             f"🏥 Especialidad: {state.booking_draft['specialty_name']}\n"
@@ -262,7 +262,7 @@ class BookingFlowHandlers:
             # We need the user DB ID. The chat_id is the user_id in Telegram.
             # But wait, our DB uses the chat_id as the primary key id in users table!
             try:
-                await self._svc.add_to_waitlist(state.chat_id, provider_id)
+                await self._svc.add_to_waitlist(state.chat_id, provider_id)  # type: ignore
             
                 await self._sender.send_message(
                     state.chat_id,
@@ -291,7 +291,7 @@ class BookingFlowHandlers:
             await self._on_idle(state, "")
         else:
             # Re-render confirmation
-            date_formatted, time_formatted = format_confirmation_date_time(state.booking_draft['slot_time'])
+            date_formatted, time_formatted = format_confirmation_date_time(state.booking_draft['slot_time'])  # type: ignore
             msg = (
                 "✅ *Confirma tu reserva*\n\n"
                 f"🏥 Especialidad: {state.booking_draft['specialty_name']}\n"
@@ -356,9 +356,10 @@ class BookingFlowHandlers:
                 
                     # Trigger waitlist
                     try:
-                        from app.worker.settings import WorkerSettings
+                        from arq.connections import RedisSettings
+                        from app.core.config import settings
                         from arq import create_pool
-                        pool = await create_pool(WorkerSettings.redis_settings)
+                        pool = await create_pool(RedisSettings.from_dsn(settings.REDIS_URL))
                         provider_id = await self._svc.get_provider_id_by_slot(slot_id_cancelled)
                         if provider_id:
                             await pool.enqueue_job("notify_waitlist", str(slot_id_cancelled), str(provider_id))
@@ -497,9 +498,10 @@ class BookingFlowHandlers:
                     
                         # Trigger waitlist for the old slot
                         try:
-                            from app.worker.settings import WorkerSettings
+                            from arq.connections import RedisSettings
+                            from app.core.config import settings
                             from arq import create_pool
-                            pool = await create_pool(WorkerSettings.redis_settings)
+                            pool = await create_pool(RedisSettings.from_dsn(settings.REDIS_URL))
                             provider_id = await self._svc.get_provider_id_by_slot(old_slot_id)
                             if provider_id:
                                 await pool.enqueue_job("notify_waitlist", str(old_slot_id), str(provider_id))

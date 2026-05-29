@@ -48,7 +48,7 @@ class TelegramSender:
         Optionally shows a toast notification or alert box.
         """
         url = f"{self.base_url}/answerCallbackQuery"
-        payload = {"callback_query_id": callback_query_id}
+        payload: dict = {"callback_query_id": callback_query_id}
         if text:
             payload["text"] = text
             payload["show_alert"] = show_alert

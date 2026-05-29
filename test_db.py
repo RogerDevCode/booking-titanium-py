@@ -1,5 +1,4 @@
 import asyncio
-from app.db.connection import db_client
 from app.core.config import settings
 
 settings.DATABASE_URL = "postgresql://booking:booking@localhost:5432/booking"

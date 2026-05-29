@@ -1,5 +1,4 @@
 import asyncio
-from app.db.connection import db_client
 from app.core.logging import setup_logging
 
 async def run():

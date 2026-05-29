@@ -29,7 +29,9 @@ class ReportFlowHandlers:
             await self._sender.send_message(
                 state.chat_id, "⏳ *Procesando tu historial médico...* Recibirás el PDF en unos segundos."
             )
-            from app.worker.tasks import generate_user_report_pdf
+            from app.worker.tasks import make_generate_user_report_pdf
+            from app.container import build_container
+            generate_user_report_pdf = make_generate_user_report_pdf(build_container())
             asyncio.create_task(generate_user_report_pdf(state.chat_id))
             return
 

@@ -1,7 +1,6 @@
 import asyncio
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-from app.db.connection import db_client
 from app.core.config import settings
 
 settings.DATABASE_URL = "postgresql://booking:booking@localhost:5432/booking"

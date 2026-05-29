@@ -51,7 +51,8 @@ class RAGService:
             logger.error("RAG search failed", error=str(e))
             return []
 
-    def format_context(self, entries: List[KBEntry]) -> str:
+    @staticmethod
+    def format_context(entries: List[KBEntry]) -> str:
         if not entries:
             return ""
         
