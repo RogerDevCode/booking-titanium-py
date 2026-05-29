@@ -40,7 +40,7 @@ def make_process_message(container):
                 "recordatorios y comprobantes a tu correo. ¡Comencemos!"
             )
             await container.telegram_sender.send_message(chat_id, welcome_msg)
-    
+            await container.telegram_sender.flush_outbox(chat_id)    
         input_text = callback_data if callback_data else text
         if not input_text:
             logger.info("Empty message received", chat_id=chat_id)

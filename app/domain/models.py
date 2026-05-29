@@ -29,6 +29,9 @@ FSM_TRANSITIONS: Dict[FSMState, Set[FSMState]] = {
         FSMState.SELECTING_TIME,
         FSMState.JOINING_WAITLIST
     },
+    FSMState.JOINING_WAITLIST: {
+        FSMState.IDLE
+    },
     FSMState.SELECTING_TIME: {
         FSMState.IDLE,
         FSMState.SELECTING_DOCTOR,
