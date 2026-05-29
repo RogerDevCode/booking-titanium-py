@@ -2,7 +2,6 @@ import redis.asyncio as redis_async
 import redis.exceptions
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
-from app.core.config import settings
 from app.core.logging import logger
 
 class RedisClient:
@@ -52,4 +51,3 @@ class RedisClient:
                 # Lock might have expired if task took too long, that's fine
                 logger.warning("Lock was already released or expired", chat_id=chat_id)
 
-redis_client = RedisClient(redis_url=settings.REDIS_URL)

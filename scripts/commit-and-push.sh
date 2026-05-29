@@ -35,29 +35,57 @@ else
 fi
 
 # ── 2. PRE-COMMIT CHECKS (FAIL FAST) ─────────────────────────────────────────
-log_info "Ejecutando controles de calidad (Ruff, Mypy)..."
+log_info "Ejecutando controles de calidad (Ruff, Mypy, Pyright, Pytest)..."
+
+# Definir rutas de herramientas (priorizar .venv)
+RUFF="./.venv/bin/ruff"
+MYPY="./.venv/bin/mypy"
+PYRIGHT="./.venv/bin/pyright"
+PYTEST="./.venv/bin/pytest"
 
 # Ruff (Linting & Formatting)
-if command -v ruff &>/dev/null; then
+if [[ -f "$RUFF" ]]; then
     echo "  → Ruff check..."
+    "$RUFF" check . || error_exit "Ruff detectó errores."
+elif command -v ruff &>/dev/null; then
+    echo "  → Ruff check (global)..."
     ruff check . || error_exit "Ruff detectó errores."
 else
-    echo "  ⚠️ Ruff no instalado, saltando..."
+    echo "  ⚠️ Ruff no encontrado, saltando..."
 fi
 
 # Mypy (Static Typing)
-if command -v mypy &>/dev/null; then
+if [[ -f "$MYPY" ]]; then
     echo "  → Mypy check..."
+    "$MYPY" . || error_exit "Mypy detectó errores de tipos."
+elif command -v mypy &>/dev/null; then
+    echo "  → Mypy check (global)..."
     mypy . || error_exit "Mypy detectó errores de tipos."
 else
-    echo "  ⚠️ Mypy no instalado, saltando..."
+    echo "  ⚠️ Mypy no encontrado, saltando..."
 fi
 
-# Nota: Pyright suele requerir Node/npm. Si está disponible, descomentar:
-# if command -v pyright &>/dev/null; then
-#     echo "  → Pyright check..."
-#     pyright . || error_exit "Pyright detectó errores."
-# fi
+# Pyright
+if [[ -f "$PYRIGHT" ]]; then
+    echo "  → Pyright check..."
+    "$PYRIGHT" . || error_exit "Pyright detectó errores."
+elif command -v pyright &>/dev/null; then
+    echo "  → Pyright check (global)..."
+    pyright . || error_exit "Pyright detectó errores."
+else
+    echo "  ⚠️ Pyright no encontrado, saltando..."
+fi
+
+# Pytest (Unit Tests)
+if [[ -f "$PYTEST" ]]; then
+    echo "  → Running Pytest..."
+    "$PYTEST" || error_exit "Pytest falló. Corrige los tests antes de subir."
+elif command -v pytest &>/dev/null; then
+    echo "  → Running Pytest (global)..."
+    pytest || error_exit "Pytest falló."
+else
+    echo "  ⚠️ Pytest no encontrado, saltando..."
+fi
 
 # ── 3. MANEJO DE MENSAJE DE COMMIT ───────────────────────────────────────────
 COMMIT_MSG="${1:-}"

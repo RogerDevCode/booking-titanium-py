@@ -1,6 +1,5 @@
 import time
 from app.core.logging import logger
-from app.pipeline.preprocessor import MessagePreprocessor
 
 def make_process_message(container):
     async def process_message(ctx: dict, payload: dict) -> None:
@@ -97,7 +96,6 @@ def make_process_message(container):
                 preflight_data = {}
             
                 if state.state == FSMState.IDLE:
-                    from app.pipeline.classifier import IntentClassifier
                     from app.domain.enums import Intent
                     from app.telegram.callback import decode
                     import asyncio
@@ -195,7 +193,6 @@ def make_cron_flush_outbox(container):
     async def cron_flush_outbox(ctx: dict) -> None:
         """Fallback cron job to flush any PENDING outbox messages."""
         
-        from app.db.connection import db_client
     
         # Get unique chat_ids with PENDING messages
         query = "SELECT DISTINCT chat_id FROM outbox_messages WHERE status = 'PENDING'"
@@ -213,9 +210,7 @@ def make_notify_waitlist(container):
         It checks if the slot is still available, gets batch of users, notifies them,
         and schedules itself again after the provider's configured delay if there are more users.
         """
-        from app.db.connection import db_client
         
-        from datetime import datetime
 
         # Check if slot is still available
         slot = await container.db_client.fetchrow(
@@ -287,7 +282,6 @@ def make_notify_waitlist(container):
             arq_pool = ctx.get("redis")
             if arq_pool:
                 from datetime import timedelta
-                from arq.utils import utcnow
                 await arq_pool.enqueue_job(
                     "notify_waitlist", 
                     slot_id, 

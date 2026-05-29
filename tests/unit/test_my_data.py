@@ -6,11 +6,11 @@ from app.fsm.profile_flow import my_data_handler
 from app.fsm.main import idle_handler
 from app.services.user_service import user_service
 from app.db.connection import db_client
-import os
 
 @pytest.fixture
 async def db():
-    from app.core.config import settings; settings.DATABASE_URL = "postgresql://booking:booking@localhost:5432/booking"
+    from app.core.config import settings
+    settings.DATABASE_URL = "postgresql://booking:booking@localhost:5432/booking"
     await db_client.connect()
     # Ensure test user exists
     await user_service.upsert_user(TelegramUser(id=999, first_name="Test", last_name="User"))

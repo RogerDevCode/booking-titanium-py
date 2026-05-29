@@ -1,0 +1,123 @@
+
+import pytest
+from unittest.mock import AsyncMock, MagicMock
+
+from app.domain.protocols import (
+    DatabaseClientProtocol, RedisClientProtocol, BookingRepositoryProtocol,
+    BookingServiceProtocol, UserServiceProtocol, TelegramSenderProtocol,
+    AIServiceProtocol, RAGServiceProtocol, ConversationTransactionProtocol,
+    SlotEngineProtocol, NotificationServiceProtocol
+)
+from app.container import Container
+from app.core.config import settings
+from app.pipeline.preprocessor import MessagePreprocessor
+from app.pipeline.classifier import IntentClassifier
+from app.fsm.main import FSMRouter
+from app.services.booking_service import BookingService
+from app.db.repositories.booking_repo import BookingRepository
+from app.telegram.sender import TelegramSender
+
+@pytest.fixture
+def fake_db() -> AsyncMock:
+    db = AsyncMock(spec=DatabaseClientProtocol)
+    db.fetch.return_value = []
+    db.fetchrow.return_value = None
+    db.execute.return_value = "INSERT 0 1"
+    
+    # Mocking transaction context manager
+    tx_mock = AsyncMock()
+    tx_mock.__aenter__.return_value = None
+    tx_mock.__aexit__.return_value = None
+    db.transaction.return_value = tx_mock
+    
+    # Mocking acquire
+    conn_mock = AsyncMock()
+    acquire_mock = AsyncMock()
+    acquire_mock.__aenter__.return_value = conn_mock
+    acquire_mock.__aexit__.return_value = None
+    if not hasattr(db, 'pool') or db.pool is None:
+        db.pool = MagicMock()
+    db.pool.acquire.return_value = acquire_mock
+    
+    return db
+
+@pytest.fixture
+def fake_redis() -> AsyncMock:
+    redis = AsyncMock(spec=RedisClientProtocol)
+    redis.client = AsyncMock()
+    return redis
+
+@pytest.fixture
+def fake_sender() -> AsyncMock:
+    sender = AsyncMock(spec=TelegramSenderProtocol)
+    sender.build_inline_keyboard = TelegramSender.build_inline_keyboard
+    sender.build_paginated_keyboard = TelegramSender.build_paginated_keyboard
+    return sender
+
+@pytest.fixture
+def fake_booking_repo(fake_db) -> BookingRepositoryProtocol:
+    return BookingRepository(db=fake_db)
+
+@pytest.fixture
+def fake_booking_service(fake_booking_repo) -> BookingServiceProtocol:
+    return BookingService(repo=fake_booking_repo)
+
+@pytest.fixture
+def fake_user_service() -> AsyncMock:
+    return AsyncMock(spec=UserServiceProtocol)
+
+@pytest.fixture
+def fake_notification_service() -> AsyncMock:
+    return AsyncMock(spec=NotificationServiceProtocol)
+
+@pytest.fixture
+def fake_slot_engine() -> AsyncMock:
+    return AsyncMock(spec=SlotEngineProtocol)
+
+@pytest.fixture
+def fake_ai_service() -> AsyncMock:
+    return AsyncMock(spec=AIServiceProtocol)
+
+@pytest.fixture
+def fake_rag_service() -> AsyncMock:
+    return AsyncMock(spec=RAGServiceProtocol)
+
+@pytest.fixture
+def fake_conversation_tx() -> AsyncMock:
+    return AsyncMock(spec=ConversationTransactionProtocol)
+
+@pytest.fixture
+def fake_container(
+    fake_db, fake_redis, fake_sender, fake_booking_repo,
+    fake_conversation_tx, fake_booking_service, fake_user_service,
+    fake_notification_service, fake_slot_engine, fake_ai_service,
+    fake_rag_service
+) -> Container:
+    prep = MessagePreprocessor()
+    clsf = IntentClassifier()
+    
+    router = FSMRouter(
+        booking_service=fake_booking_service,
+        user_service=fake_user_service,
+        sender=fake_sender,
+        booking_repo=fake_booking_repo,
+        db=fake_db
+    )
+
+    return Container(
+        settings=settings,
+        db_client=fake_db,
+        redis_client=fake_redis,
+        telegram_sender=fake_sender,
+        booking_repo=fake_booking_repo,
+        conversation_tx=fake_conversation_tx,
+        booking_service=fake_booking_service,
+        user_service=fake_user_service,
+        notification_service=fake_notification_service,
+        slot_engine=fake_slot_engine,
+        preprocessor=prep,
+        classifier=clsf,
+        fsm_router=router,
+        ai_service=fake_ai_service,
+        rag_service=fake_rag_service
+    )

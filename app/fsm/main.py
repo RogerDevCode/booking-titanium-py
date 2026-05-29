@@ -95,7 +95,7 @@ class FSMRouter:
             state.transition_to(FSMState.CANCELLING_BOOKING)
             await self._booking_flow.cancellation_handler(state, "")
 
-        elif intent == Intent.RESCHEDULING_BOOKING or intent == Intent.RESCHEDULE_APPOINTMENT:
+        elif intent == Intent.RESCHEDULE_APPOINTMENT or intent == Intent.RESCHEDULE_APPOINTMENT:
             state.transition_to(FSMState.RESCHEDULING_BOOKING)
             await self._booking_flow.reschedule_handler(state, "")
 
@@ -163,7 +163,7 @@ class FSMRouter:
         if text_lower in ["/start", "home"]:
             logger.info(f"Global {text_lower} received, resetting state", chat_id=state.chat_id)
             
-            await self._db.execute("UPDATE outbox_messages SET status = 'CANCELLED' WHERE chat_id =  AND status = 'PENDING'", state.chat_id)
+            await self._db.execute("UPDATE outbox_messages SET status = 'CANCELLED' WHERE chat_id = $1 AND status = 'PENDING'", state.chat_id)
 
             if text_lower == "home" and state.state == FSMState.IDLE and state.version > 0:
                 return
@@ -223,21 +223,3 @@ class FSMRouter:
             pass
 
 
-# Temporary singleton for backward compatibility until Phase 9
-from app.services.booking_service import booking_service
-from app.services.user_service import user_service
-from app.telegram.sender import telegram_sender
-from app.db.repositories.booking_repo import booking_repo
-from app.db.connection import db_client
-
-fsm_router = FSMRouter(
-    booking_service=booking_service,
-    user_service=user_service,
-    sender=telegram_sender,
-    booking_repo=booking_repo,
-    db=db_client
-)
-
-
-async def idle_handler(state, text):
-    return await fsm_router._idle_handler(state, text)

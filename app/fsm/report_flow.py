@@ -1,4 +1,4 @@
-from typing import Callable, Awaitable
+from typing import Callable
 from app.domain.protocols import BookingRepositoryProtocol, TelegramSenderProtocol
 import asyncio
 from datetime import datetime
@@ -13,7 +13,7 @@ class ReportFlowHandlers:
         self._sender = sender
         self._on_idle = on_idle
 
-    async def report_handler(state: ConversationState, text: str):
+    async def report_handler(self, state: ConversationState, text: str):
         logger.info("Handling report flow", chat_id=state.chat_id, text=text)
 
         # Convert text to standard action
@@ -88,4 +88,4 @@ class ReportFlowHandlers:
 async def _get_report_flow_handlers():
     from app.fsm.main import fsm_router
     return fsm_router._report_flow
-async def report_handler(state, text): return await (await _get_report_flow_handlers()).report(state, text)
+async def report_handler(state, text): return await (await _get_report_flow_handlers()).report_handler(state, text)

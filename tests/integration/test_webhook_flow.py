@@ -1,11 +1,10 @@
-import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, AsyncMock
 
-from app.core.config import settings
+from app.core.config import settings  # noqa: E402
 settings.REDIS_URL = "redis://localhost:6379"
 
-from app.main import app
+from app.main import app  # noqa: E402
 
 client = TestClient(app)
 

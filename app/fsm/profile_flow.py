@@ -1,4 +1,4 @@
-from typing import Callable, Awaitable
+from typing import Callable
 from app.domain.protocols import UserServiceProtocol, TelegramSenderProtocol
 import re
 from app.core.logging import logger
@@ -11,7 +11,7 @@ class ProfileFlowHandlers:
         self._sender = sender
         self._on_idle = on_idle
 
-    async def my_data_handler(state: ConversationState, text: str):
+    async def my_data_handler(self, state: ConversationState, text: str):
         """Handles the user profile management flow."""
         logger.info("Handling my_data", chat_id=state.chat_id, text=text)
 
@@ -151,4 +151,4 @@ class ProfileFlowHandlers:
 async def _get_profile_flow_handlers():
     from app.fsm.main import fsm_router
     return fsm_router._profile_flow
-async def my_data_handler(state, text): return await (await _get_profile_flow_handlers()).my_data(state, text)
+async def my_data_handler(state, text): return await (await _get_profile_flow_handlers()).my_data_handler(state, text)

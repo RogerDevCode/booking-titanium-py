@@ -1,35 +1,116 @@
-# Python
+# =============================================================================
+# TITANIUM BOOKING ENGINE - .gitignore
+# =============================================================================
+
+# --- Python Core ---
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# --- Virtual Environments ---
 .venv/
 venv/
 ENV/
 env/
+virtualenv/
+
+# --- Environment & Secrets ---
 .env
 .env.*
+!.env.example
+secrets.json
+*.pem
+*.key
+*.crt
 
-# Logs & Debugging
-*.log
-fuzz_error*
-image.png
-*.jpg
-*.jpeg
-*.png
-*.gif
+# --- Tests & Coverage ---
 .hypothesis/
 .pytest_cache/
+.tox/
+.nox/
+.coverage
+*.cover
+.htmlcov/
+nosetests.xml
+coverage.xml
+*,cover
+.pickle
+tests/data/output/
+
+# --- Tooling Caches ---
 .ruff_cache/
 .mypy_cache/
 .pyright/
-
-# OS/IDE
-.DS_Store
-.vscode/
-.idea/
+.pytest_cache/
+.cache/
+.ipynb_checkpoints
 .antigravitycli/
 
-# Project Specific
-tests/
+# --- Docker & Local Infra ---
+docker-compose.override.yml
+.docker/
+data/
+pgdata/
+redisdata/
+*.db
+*.sqlite3
+
+# --- Logs & Debugging ---
+*.log
+logs/
+fuzz_error*
+fuzz_debug/
+.python-version
+
+# --- Assets & Media ---
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.pdf
+*.mp4
+*.zip
+*.tar.gz
+
+# --- IDEs & Editors ---
+.vscode/
+!.vscode/extensions.json
+!.vscode/launch.json
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# --- Project Specific Exclusions ---
 frontend_provider/
 docs/
+temp/
+tmp/
+_archived/
+image.png
+refactor_callback_versioning.md
+fsm_architectural_guide.md

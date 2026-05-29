@@ -37,7 +37,7 @@ def create_lifespan(container: Container):
     return lifespan
 
 # Temporary fallback
-from app.core.config import settings
+from app.core.config import settings  # noqa: E402
 try:
     from app.container import build_container
     _temp_container = build_container(settings)

@@ -5,11 +5,11 @@ from app.fsm.booking_flow import my_bookings_handler
 from app.fsm.booking_flow import cancellation_handler
 from app.fsm.main import idle_handler
 from app.db.connection import db_client
-import os
 
 @pytest.fixture
 async def db():
-    from app.core.config import settings; settings.DATABASE_URL = "postgresql://booking:booking@localhost:5432/booking"
+    from app.core.config import settings
+    settings.DATABASE_URL = "postgresql://booking:booking@localhost:5432/booking"
     await db_client.connect()
     yield
     await db_client.disconnect()
@@ -59,7 +59,7 @@ async def test_view_and_cancel_flow(db):
     
     # 5. Verify it's gone from active bookings
     from app.services.booking_service import booking_service
-    bookings = await booking_service.get_user_bookings(chat_id)
+    await booking_service.get_user_bookings(chat_id)
     # Since we seeded 1 booking and cancelled it (assuming previous tests didn't consume all slots)
     # The seed script creates 4 slots per provider, and we have 1 user.
     # In test_full_booking_flow we created 1. Now we cancel 1.

@@ -1,10 +1,7 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Request
 from pydantic import BaseModel
-from typing import List, Optional
 from datetime import datetime, date
-from app.db.connection import db_client
 from app.core.logging import logger
-from app.telegram.sender import telegram_sender
 from app.fsm.booking_flow import format_confirmation_date_time
 
 router = APIRouter()
@@ -20,7 +17,8 @@ class SettingsUpdate(BaseModel):
     notice_period_hours: int
 
 @router.get("/provider/{provider_id}/dashboard")
-async def get_dashboard(provider_id: str):
+async def get_dashboard(provider_id: str, request: Request):
+    db_client = request.app.state.container.db_client
     """Returns basic stats for the provider dashboard."""
     # 1. Appointments Today
     today_start = datetime.combine(date.today(), datetime.min.time())
@@ -50,7 +48,8 @@ async def get_dashboard(provider_id: str):
     }
 
 @router.get("/provider/{provider_id}/appointments")
-async def get_appointments(provider_id: str, start_date: datetime, end_date: datetime):
+async def get_appointments(provider_id: str, start_date: datetime, end_date: datetime, request: Request):
+    db_client = request.app.state.container.db_client
     """Returns appointments for a specific date range."""
     query = """
         SELECT b.id, s.start_time, s.end_time, u.first_name, u.last_name, b.status
@@ -69,7 +68,7 @@ async def get_appointments(provider_id: str, start_date: datetime, end_date: dat
         "status": r['status']
     } for r in rows]
 
-async def cancel_and_notify_patients(provider_id: str, start_dt: datetime, end_dt: datetime):
+async def cancel_and_notify_patients(provider_id: str, start_dt: datetime, end_dt: datetime, db_client, telegram_sender, slot_engine):
     # Find all confirmed bookings in this time block
     query = """
         SELECT b.id, b.user_id, s.start_time 
@@ -101,26 +100,30 @@ async def cancel_and_notify_patients(provider_id: str, start_dt: datetime, end_d
             logger.error("Failed to notify user of provider cancellation", error=str(e), user_id=b['user_id'])
             
     # Trigger slot generator to update DB immediately
-    from app.services.slot_engine import slot_engine
+    
     try:
         await slot_engine.generate_slots_for_provider(provider_id)
     except Exception as e:
         logger.error("Failed to refresh slots after exception", error=str(e))
 
 @router.post("/provider/{provider_id}/exceptions")
-async def create_exception(provider_id: str, exc: ExceptionCreate, background_tasks: BackgroundTasks):
+async def create_exception(provider_id: str, exc: ExceptionCreate, background_tasks: BackgroundTasks, request: Request):
+    db_client = request.app.state.container.db_client
+    telegram_sender = request.app.state.container.telegram_sender
+    slot_engine = request.app.state.container.slot_engine
     """Creates a time block/exception and cancels affected appointments."""
     await db_client.execute(
         "INSERT INTO provider_exceptions (provider_id, start_datetime, end_datetime, reason) VALUES ($1, $2, $3, $4)",
         provider_id, exc.start_datetime, exc.end_datetime, exc.reason
     )
     # Background task to cancel overlapping appointments and notify
-    background_tasks.add_task(cancel_and_notify_patients, provider_id, exc.start_datetime, exc.end_datetime)
+    background_tasks.add_task(cancel_and_notify_patients, provider_id, exc.start_datetime, exc.end_datetime, db_client, telegram_sender, slot_engine)
     
     return {"status": "success", "message": "Exception created and patients notified"}
 
 @router.put("/provider/{provider_id}/settings")
-async def update_settings(provider_id: str, settings: SettingsUpdate):
+async def update_settings(provider_id: str, settings: SettingsUpdate, request: Request):
+    db_client = request.app.state.container.db_client
     await db_client.execute(
         """UPDATE providers 
            SET slot_duration_minutes = $1, buffer_time_minutes = $2, notice_period_hours = $3 

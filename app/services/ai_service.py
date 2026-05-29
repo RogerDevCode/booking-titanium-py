@@ -51,7 +51,7 @@ class AIService:
             )
             await self._cb.record_success()
             return response.choices[0].message.content # type: ignore
-        except Exception as e:
+        except Exception:
             await self._cb.record_failure()
             raise
 
@@ -70,6 +70,3 @@ class AIService:
             raise
 
 # Temporary fallback
-from app.db.redis_client import redis_client
-llm_cb = RedisCircuitBreaker(redis_client=redis_client, name="llm", failure_threshold=3, recovery_timeout=60)
-ai_service = AIService(circuit_breaker=llm_cb)

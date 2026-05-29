@@ -1,4 +1,4 @@
-from typing import Callable, Awaitable
+from typing import Callable
 from app.domain.protocols import BookingServiceProtocol, TelegramSenderProtocol, BookingRepositoryProtocol
 from app.core.logging import logger
 from app.domain.enums import FSMState
@@ -33,7 +33,7 @@ class BookingFlowHandlers:
         self._repo = booking_repo
         self._on_idle = on_idle
 
-    async def selecting_specialty_handler(state: ConversationState, text: str):
+    async def selecting_specialty_handler(self, state: ConversationState, text: str):
         """Handles the selection of a specialty."""
         logger.info("Handling selecting_specialty", chat_id=state.chat_id, text=text)
 
@@ -52,7 +52,7 @@ class BookingFlowHandlers:
 
         if not selected_specialty:
             # Re-render with buttons
-            await _render_specialties_menu(state)
+            await self._render_specialties_menu(state)
             return
 
         state.booking_draft["specialty_id"] = selected_specialty.id
@@ -70,10 +70,10 @@ class BookingFlowHandlers:
 
         state.context["items"] = [{"id": d.id, "name": d.name} for d in doctors]
         state.context["page"] = 0
-        await _render_doctors_menu(state)
+        await self._render_doctors_menu(state)
 
 
-    async def _render_specialties_menu(state: ConversationState):
+    async def _render_specialties_menu(self, state: ConversationState):
         specialties = await self._svc.get_all_specialties()
         msg = "🏥 *[B] Selecciona una especialidad:*\n\n"
         options = []
@@ -85,7 +85,7 @@ class BookingFlowHandlers:
         await self._sender.send_message(state.chat_id, msg, reply_markup=kb)
 
 
-    async def _render_doctors_menu(state: ConversationState):
+    async def _render_doctors_menu(self, state: ConversationState):
         items = state.context.get("items", [])
         specialty_name = state.booking_draft.get("specialty_name", "")
         msg = f"👨‍⚕️ *[C] Seleccionar Médico*\n\nHas elegido *{specialty_name}*. ¿Con qué doctor te gustaría atenderte?"
@@ -105,7 +105,7 @@ class BookingFlowHandlers:
         await self._sender.send_message(state.chat_id, msg, reply_markup=kb)
 
 
-    async def selecting_doctor_handler(state: ConversationState, text: str):
+    async def selecting_doctor_handler(self, state: ConversationState, text: str):
         """Handles the selection of a doctor."""
         logger.info("Handling selecting_doctor", chat_id=state.chat_id, text=text)
 
@@ -113,7 +113,7 @@ class BookingFlowHandlers:
             page = state.context.get("page", 0)
             page = page + 1 if text == "page_next" else max(0, page - 1)
             state.context["page"] = page
-            await _render_doctors_menu(state)
+            await self._render_doctors_menu(state)
             return
 
         items = state.context.get("items", [])
@@ -133,12 +133,11 @@ class BookingFlowHandlers:
                     break
 
         if not selected_doctor_id:
-            await _render_doctors_menu(state)
+            await self._render_doctors_menu(state)
             return
 
         state.booking_draft["doctor_id"] = selected_doctor_id
         state.booking_draft["doctor_name"] = selected_doctor_name
-        state.transition_to(FSMState.SELECTING_TIME)
 
         slots = await self._svc.get_available_slots(selected_doctor_id)
         if not slots:
@@ -151,6 +150,7 @@ class BookingFlowHandlers:
             await self._sender.send_message(state.chat_id, msg, reply_markup=kb)
             return
 
+        state.transition_to(FSMState.SELECTING_TIME)
         state.context["items"] = [
             {"id": s.id, "time": s.start_time.isoformat()} for s in slots
         ]
@@ -178,7 +178,7 @@ class BookingFlowHandlers:
         await self._sender.send_message(state.chat_id, msg, reply_markup=kb)
 
 
-    async def selecting_time_handler(state: ConversationState, text: str):
+    async def selecting_time_handler(self, state: ConversationState, text: str):
         """Handles the selection of a time slot."""
         logger.info("Handling selecting_time", chat_id=state.chat_id, text=text)
 
@@ -220,11 +220,11 @@ class BookingFlowHandlers:
         await self._sender.send_message(state.chat_id, msg, reply_markup=kb)
 
 
-    async def confirming_booking_handler(state: ConversationState, text: str):
+    async def confirming_booking_handler(self, state: ConversationState, text: str):
         """Finalizes the booking."""
         if text.lower() in ["si", "sí", "confirmar", "ok", "1"]:
             try:
-                booking = await self._svc.create_booking(
+                await self._svc.create_booking(
                     state.chat_id, state.booking_draft["slot_id"]
                 )
                 await self._sender.send_message(
@@ -254,7 +254,7 @@ class BookingFlowHandlers:
             state.context = {}
             await self._on_idle(state, "")
 
-    async def joining_waitlist_handler(state: ConversationState, text: str):
+    async def joining_waitlist_handler(self, state: ConversationState, text: str):
         """Handles joining the waitlist."""
         if text.lower() in ["si", "sí", "anotarme", "1", "sí, anotarme"]:
             provider_id = state.booking_draft.get("doctor_id")
@@ -304,7 +304,7 @@ class BookingFlowHandlers:
             await self._sender.send_message(state.chat_id, msg, reply_markup=kb)
 
 
-    async def cancellation_handler(state: ConversationState, text: str):
+    async def cancellation_handler(self, state: ConversationState, text: str):
         """Handles the cancellation flow."""
         logger.info("Handling cancellation", chat_id=state.chat_id, text=text)
 
@@ -312,7 +312,7 @@ class BookingFlowHandlers:
             page = state.context.get("page", 0)
             page = page + 1 if text == "page_next" else max(0, page - 1)
             state.context["page"] = page
-            await _render_cancellation_menu(state)
+            await self._render_cancellation_menu(state)
             return
 
         bookings = await self._svc.get_user_bookings(state.chat_id)
@@ -375,10 +375,10 @@ class BookingFlowHandlers:
                 await self._on_idle(state, "")
                 return
 
-        await _render_cancellation_menu(state)
+        await self._render_cancellation_menu(state)
 
 
-    async def _render_cancellation_menu(state: ConversationState):
+    async def _render_cancellation_menu(self, state: ConversationState):
         items = state.context.get("items", [])
         msg = "❌ *[G] Cancelar Cita*\n\n¿Cuál de estas citas deseas cancelar?"
     
@@ -401,7 +401,7 @@ class BookingFlowHandlers:
         await self._sender.send_message(state.chat_id, msg, reply_markup=kb)
 
 
-    async def reschedule_handler(state: ConversationState, text: str):
+    async def reschedule_handler(self, state: ConversationState, text: str):
         """Handles the rescheduling flow."""
         logger.info("Handling rescheduling", chat_id=state.chat_id, text=text)
 
@@ -411,9 +411,9 @@ class BookingFlowHandlers:
             state.context["page"] = page
             step = state.context.get("step", "select_booking")
             if step == "select_booking":
-                await _render_reschedule_bookings_menu(state)
+                await self._render_reschedule_bookings_menu(state)
             elif step == "select_new_slot":
-                await _render_reschedule_slots_menu(state)
+                await self._render_reschedule_slots_menu(state)
             return
 
         bookings = await self._svc.get_user_bookings(state.chat_id)
@@ -448,7 +448,7 @@ class BookingFlowHandlers:
                 if 0 <= idx < len(items):
                     selected_booking_id = items[idx]["id"]
                     state.booking_draft["old_booking_id"] = selected_booking_id
-                    state.booking_draft["doctor_id"] = await _get_doctor_id_for_booking(
+                    state.booking_draft["doctor_id"] = await self._get_doctor_id_for_booking(
                         selected_booking_id
                     )
                     state.context["step"] = "select_new_slot"
@@ -466,14 +466,15 @@ class BookingFlowHandlers:
                         await self._on_idle(state, "")
                         return
 
+                    state.transition_to(FSMState.SELECTING_TIME)
                     state.context["items"] = [
                         {"id": s.id, "time": s.start_time.isoformat()} for s in slots
                     ]
                     state.context["page"] = 0
-                    await _render_reschedule_slots_menu(state)
+                    await self._render_reschedule_slots_menu(state)
                     return
 
-            await _render_reschedule_bookings_menu(state)
+            await self._render_reschedule_bookings_menu(state)
 
         elif step == "select_new_slot":
             items = state.context.get("items", [])
@@ -518,11 +519,11 @@ class BookingFlowHandlers:
                     await self._on_idle(state, "")
         
             if not selected:
-                await _render_reschedule_slots_menu(state)
+                await self._render_reschedule_slots_menu(state)
                 return
 
 
-    async def _render_reschedule_bookings_menu(state: ConversationState):
+    async def _render_reschedule_bookings_menu(self, state: ConversationState):
         items = state.context.get("items", [])
         msg = "🔄 *[H] Reagendar Cita*\n\n¿Cuál de estas citas deseas cambiar?"
     
@@ -545,7 +546,7 @@ class BookingFlowHandlers:
         await self._sender.send_message(state.chat_id, msg, reply_markup=kb)
 
 
-    async def _render_reschedule_slots_menu(state: ConversationState):
+    async def _render_reschedule_slots_menu(self, state: ConversationState):
         items = state.context.get("items", [])
         msg = "🔄 *[H] Selecciona un nuevo horario:*"
     
@@ -563,10 +564,10 @@ class BookingFlowHandlers:
             total_pages=total_pages, include_nav=True)
         await self._sender.send_message(state.chat_id, msg, reply_markup=kb)
 
-    async def _get_doctor_id_for_booking(booking_id: int) -> str:
+    async def _get_doctor_id_for_booking(self, booking_id: int) -> str:
         return await self._repo.get_provider_id_by_booking(booking_id)
 
-    async def my_bookings_handler(state: ConversationState, text: str):
+    async def my_bookings_handler(self, state: ConversationState, text: str):
         """Shows the user's active bookings."""
         logger.info("Handling viewing_bookings", chat_id=state.chat_id, text=text)
 
@@ -604,21 +605,18 @@ class BookingFlowHandlers:
         await self._sender.send_message(state.chat_id, msg, reply_markup=kb)
 
 # Temporary proxies for backwards compatibility during DI refactor phase 5
-from app.services.booking_service import booking_service
-from app.telegram.sender import telegram_sender
-from app.db.repositories.booking_repo import booking_repo
 
 async def _get_booking_flow_handlers():
     from app.fsm.main import fsm_router
     return fsm_router._booking_flow
 
-async def selecting_specialty_handler(state, text): return await (await _get_booking_flow_handlers()).selecting_specialty(state, text)
-async def selecting_doctor_handler(state, text): return await (await _get_booking_flow_handlers()).selecting_doctor(state, text)
-async def selecting_time_handler(state, text): return await (await _get_booking_flow_handlers()).selecting_time(state, text)
-async def confirming_booking_handler(state, text): return await (await _get_booking_flow_handlers()).confirming_booking(state, text)
-async def my_bookings_handler(state, text): return await (await _get_booking_flow_handlers()).my_bookings(state, text)
-async def cancellation_handler(state, text): return await (await _get_booking_flow_handlers()).cancellation(state, text)
-async def reschedule_handler(state, text): return await (await _get_booking_flow_handlers()).reschedule(state, text)
-async def joining_waitlist_handler(state, text): return await (await _get_booking_flow_handlers()).joining_waitlist(state, text)
+async def selecting_specialty_handler(state, text): return await (await _get_booking_flow_handlers()).selecting_specialty_handler(state, text)
+async def selecting_doctor_handler(state, text): return await (await _get_booking_flow_handlers()).selecting_doctor_handler(state, text)
+async def selecting_time_handler(state, text): return await (await _get_booking_flow_handlers()).selecting_time_handler(state, text)
+async def confirming_booking_handler(state, text): return await (await _get_booking_flow_handlers()).confirming_booking_handler(state, text)
+async def my_bookings_handler(state, text): return await (await _get_booking_flow_handlers()).my_bookings_handler(state, text)
+async def cancellation_handler(state, text): return await (await _get_booking_flow_handlers()).cancellation_handler(state, text)
+async def reschedule_handler(state, text): return await (await _get_booking_flow_handlers()).reschedule_handler(state, text)
+async def joining_waitlist_handler(state, text): return await (await _get_booking_flow_handlers()).joining_waitlist_handler(state, text)
 
-async def _render_time_menu(state): return await (await _get_booking_flow_handlers())._render_time_menu(state)
+async def _render_time_menu(self, state): return await (await _get_booking_flow_handlers()).self._render_time_menu(state)

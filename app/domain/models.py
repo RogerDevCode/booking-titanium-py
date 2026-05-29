@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, List, Literal, Dict, Any, Set
-from pydantic import BaseModel, Field, ConfigDict
-from app.domain.enums import BookingStatus, FSMState
+from pydantic import BaseModel, ConfigDict
+from app.domain.enums import FSMState
 from app.core.logging import logger
 
 from dataclasses import dataclass, field
@@ -26,7 +26,8 @@ FSM_TRANSITIONS: Dict[FSMState, Set[FSMState]] = {
     FSMState.SELECTING_DOCTOR: {
         FSMState.IDLE,
         FSMState.SELECTING_SPECIALTY,
-        FSMState.SELECTING_TIME
+        FSMState.SELECTING_TIME,
+        FSMState.JOINING_WAITLIST
     },
     FSMState.SELECTING_TIME: {
         FSMState.IDLE,

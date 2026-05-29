@@ -1,8 +1,6 @@
 from typing import List, Optional
 from app.domain.entities import Booking, BookingView, Specialty, Provider, AppointmentSlot
-from app.domain.models import BookingIn
 from app.domain.enums import BookingStatus
-from app.db.connection import db_client
 from app.domain.protocols import DatabaseClientProtocol
 
 from app.core.logging import logger
@@ -221,4 +219,3 @@ class BookingRepository:
             ) for r in rows
         ]
 
-booking_repo = BookingRepository(db=db_client)

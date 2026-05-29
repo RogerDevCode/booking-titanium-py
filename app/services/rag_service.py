@@ -1,5 +1,4 @@
 from typing import List, Optional
-from app.db.connection import db_client
 from app.domain.protocols import DatabaseClientProtocol
 
 from app.core.logging import logger
@@ -64,4 +63,3 @@ class RAGService:
         
         return "\n".join(context_parts)
 
-rag_service = RAGService(db=db_client)

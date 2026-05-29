@@ -9,11 +9,11 @@ from app.fsm.booking_flow import (
 )
 from app.fsm.main import idle_handler
 from app.db.connection import db_client
-import os
 
 @pytest.fixture
 async def db():
-    from app.core.config import settings; settings.DATABASE_URL = "postgresql://booking:booking@localhost:5432/booking"
+    from app.core.config import settings
+    settings.DATABASE_URL = "postgresql://booking:booking@localhost:5432/booking"
     await db_client.connect()
     yield
     await db_client.disconnect()

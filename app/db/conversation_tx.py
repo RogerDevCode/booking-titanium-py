@@ -1,5 +1,4 @@
 import json
-from app.db.connection import db_client
 from app.domain.protocols import DatabaseClientProtocol
 from app.domain.models import ConversationState
 from app.domain.enums import FSMState
@@ -61,4 +60,3 @@ class ConversationTransaction:
             state.version
         )
 
-conversation_tx = ConversationTransaction(db=db_client)

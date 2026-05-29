@@ -1,8 +1,6 @@
-from app.db.connection import db_client
 from app.domain.protocols import DatabaseClientProtocol, TelegramSenderProtocol
 
 from app.core.logging import logger
-from app.telegram.sender import telegram_sender
 
 class NotificationService:
     """
@@ -72,4 +70,3 @@ class NotificationService:
         except Exception as e:
             logger.error("Auto-cancel cron failed", error=str(e))
 
-notification_service = NotificationService(db=db_client, sender=telegram_sender)

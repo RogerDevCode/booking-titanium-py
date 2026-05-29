@@ -1,9 +1,7 @@
 import httpx
 import json
 from typing import Optional, List, Dict, Any
-from app.core.config import settings
 from app.core.logging import logger
-from app.db.connection import db_client
 from app.domain.protocols import DatabaseClientProtocol
 
 from app.telegram.callback import encode
@@ -162,4 +160,3 @@ class TelegramSender:
             
         return {"inline_keyboard": keyboard}
 
-telegram_sender = TelegramSender(db=db_client, token=settings.TELEGRAM_BOT_TOKEN)

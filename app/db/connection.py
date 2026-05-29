@@ -2,7 +2,6 @@ import asyncpg
 import contextvars
 from typing import Optional
 from contextlib import asynccontextmanager
-from app.core.config import settings
 
 # Context variable to hold the active transaction connection
 _transaction_conn = contextvars.ContextVar("_transaction_conn", default=None)
@@ -140,4 +139,3 @@ class DatabaseClient:
         async with self.pool.acquire() as conn_new:
             return await conn_new.fetchrow(query, *args)
 
-db_client = DatabaseClient(dsn=settings.DATABASE_URL, pool_size=settings.DATABASE_POOL)

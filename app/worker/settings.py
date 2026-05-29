@@ -54,7 +54,7 @@ def create_worker_settings(container: Container) -> type:
     return WorkerSettings
 
 # Temporary backward compatibility fallback for tools that might import WorkerSettings directly
-from app.core.config import settings
+from app.core.config import settings  # noqa: E402
 try:
     from app.container import build_container
     _temp_container = build_container(settings)

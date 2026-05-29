@@ -1,8 +1,5 @@
-from datetime import datetime, timedelta, time
-from typing import List, Dict, Any
-import pytz
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-from app.db.connection import db_client
 from app.domain.protocols import DatabaseClientProtocol
 
 from app.core.logging import logger
@@ -117,4 +114,3 @@ class SlotEngine:
                     
         logger.info("Generated new slots", provider_id=provider_id, new_slots=inserted_count)
 
-slot_engine = SlotEngine(db=db_client)

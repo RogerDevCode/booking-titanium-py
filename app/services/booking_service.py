@@ -1,6 +1,5 @@
 from typing import List, Optional
 from app.domain.entities import Specialty, Provider, AppointmentSlot, Booking, BookingView
-from app.db.repositories.booking_repo import booking_repo
 from app.domain.protocols import BookingRepositoryProtocol
 
 class BookingService:
@@ -33,4 +32,3 @@ class BookingService:
     async def get_provider_id_by_slot(self, slot_id: str) -> Optional[str]:
         return await self._repo.get_provider_id_by_slot(slot_id)
 
-booking_service = BookingService(repo=booking_repo)

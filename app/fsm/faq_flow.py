@@ -1,4 +1,4 @@
-from typing import Callable, Awaitable
+from typing import Callable
 from app.domain.protocols import TelegramSenderProtocol
 from app.core.logging import logger
 from app.domain.enums import FSMState
@@ -9,7 +9,7 @@ class FAQFlowHandlers:
         self._sender = sender
         self._on_idle = on_idle
 
-    async def waiting_faq_handler(state: ConversationState, text: str):
+    async def waiting_faq_handler(self, state: ConversationState, text: str):
         """
         Handles user questions using RAG (Retrieval Augmented Generation).
         """
@@ -51,4 +51,4 @@ class FAQFlowHandlers:
 async def _get_faq_flow_handlers():
     from app.fsm.main import fsm_router
     return fsm_router._faq_flow
-async def waiting_faq_handler(state, text): return await (await _get_faq_flow_handlers()).waiting_faq(state, text)
+async def waiting_faq_handler(state, text): return await (await _get_faq_flow_handlers()).waiting_faq_handler(state, text)

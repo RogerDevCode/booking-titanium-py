@@ -1,5 +1,4 @@
 from typing import Optional
-from app.db.connection import db_client
 from app.domain.protocols import DatabaseClientProtocol
 
 from app.domain.entities import TelegramUser
@@ -61,4 +60,3 @@ class UserService:
         await self._db.execute(query, value, user_id)
         return True
 
-user_service = UserService(db=db_client)
