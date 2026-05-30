@@ -1,0 +1,16 @@
+🛠️ Cambios Realizados
+   * FSM Router: 
+       * Añadida advertencia cuando el usuario intenta usar un menú expirado (validación de versión de callback).
+       * Mejorado el soporte multilingüe y de comandos en la navegación (ej: /cancel, atrás).
+       * Implementada regla global para comandos / desconocidos durante flujos activos para evitar pérdidas de estado
+         accidentales.
+   * Navegación: Corregido el comportamiento de los botones "Atrás" en el flujo de reserva para que regeneren
+     correctamente el menú anterior (médicos, especialidades, etc.) en lugar de volver a IDLE.
+   * Calidad de Código:
+       * Eliminados los proxies temporales obsoletos en los flujos FSM que causaban errores de importación circular en
+         Pyright.
+       * Corregidos errores de ContextVar en la gestión de transacciones de DB.
+       * Añadido pyrightconfig.json para excluir archivos obsoletos y configurar el entorno virtual.
+   * Tests: Creada nueva suite de integración test_menus_chaotic_integration.py que valida la navegación "caótica" y la
+     resiliencia del FSM.
+  Se han subido los cambios a la rama main tras validar que los 67 tests pasan correctamente.
