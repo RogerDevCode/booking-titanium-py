@@ -17,6 +17,7 @@ from app.fsm.booking_flow import BookingFlowHandlers
 from app.fsm.profile_flow import ProfileFlowHandlers
 from app.fsm.faq_flow import FAQFlowHandlers
 from app.fsm.report_flow import ReportFlowHandlers
+from app.fsm.reminder_flow import ReminderFlowHandlers
 
 HandlerType = Callable[['ConversationState', str], Awaitable[None]]
 
@@ -56,6 +57,11 @@ class FSMRouter:
             sender=sender,
             on_idle=self._idle_handler,
         )
+        self._reminder_flow = ReminderFlowHandlers(
+            user_service=user_service,
+            sender=sender,
+            on_idle=self._idle_handler,
+        )
 
         self._handlers: Dict[FSMState, HandlerType] = {
             FSMState.IDLE: self._idle_handler,
@@ -70,6 +76,7 @@ class FSMRouter:
             FSMState.WAITING_FAQ: self._faq_flow.waiting_faq_handler,
             FSMState.JOINING_WAITLIST: self._booking_flow.joining_waitlist_handler,
             FSMState.VIEWING_REPORT: self._report_flow.report_handler,
+            FSMState.CONFIGURING_REMINDERS: self._reminder_flow.reminder_handler,
         }
 
     async def _idle_handler(self, state: ConversationState, text: str) -> None:
@@ -114,18 +121,8 @@ class FSMRouter:
             await self._profile_flow.my_data_handler(state, "")
 
         elif intent == Intent.MANAGE_REMINDERS:
-            user = await self._user_svc.get_user(state.chat_id)
-            if user and not user.email:
-                msg = "🔔 *Recordatorios por Email*\n\nPara recibir alertas y notificaciones de tus reservas por correo, primero debes registrar tu email.\n\n¿Deseas agregarlo ahora?"
-                state.transition_to(FSMState.UPDATING_PROFILE)
-                state.context["step"] = "awaiting_value"
-                state.context["field"] = "email"
-                kb = self._sender.build_inline_keyboard(["Volver al Menú"], state.version)
-                await self._sender.send_message(state.chat_id, msg, reply_markup=kb)
-            else:
-                msg = "🔔 *Recordatorios*\n\nPróximamente podrás gestionar tus notificaciones aquí."
-                kb = self._sender.build_inline_keyboard(["Volver al Menú"], state.version)
-                await self._sender.send_message(state.chat_id, msg, reply_markup=kb)
+            state.transition_to(FSMState.CONFIGURING_REMINDERS)
+            await self._reminder_flow.reminder_handler(state, "")
 
         else:
             menu_text = "🌟 *[A] Bienvenido al Sistema de Reservas Titanium*\n\n¿En qué puedo ayudarte hoy?"

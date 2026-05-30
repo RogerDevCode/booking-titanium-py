@@ -8,7 +8,10 @@ from app.worker.tasks import (
     make_cron_reminders,
     make_cron_flush_outbox,
     make_notify_waitlist,
-    make_cron_generate_slots
+    make_cron_generate_slots,
+    make_sync_booking_to_gcal,
+    make_delete_gcal_event,
+    make_cron_reconcile_gcal
 )
 
 def create_worker_settings(container: Container) -> type:
@@ -18,6 +21,9 @@ def create_worker_settings(container: Container) -> type:
     fn_cron_flush_outbox = make_cron_flush_outbox(container)
     fn_notify_waitlist = make_notify_waitlist(container)
     fn_cron_generate_slots = make_cron_generate_slots(container)
+    fn_sync_booking_to_gcal = make_sync_booking_to_gcal(container)
+    fn_delete_gcal_event = make_delete_gcal_event(container)
+    fn_cron_reconcile_gcal = make_cron_reconcile_gcal(container)
 
     class WorkerSettings:
         """Configuration for ARQ worker."""
@@ -27,7 +33,10 @@ def create_worker_settings(container: Container) -> type:
             fn_cron_reminders,
             fn_cron_flush_outbox,
             fn_notify_waitlist,
-            fn_cron_generate_slots
+            fn_cron_generate_slots,
+            fn_sync_booking_to_gcal,
+            fn_delete_gcal_event,
+            fn_cron_reconcile_gcal
         ]
         cron_jobs = [
             # Every 10 minutes (0, 10, 20...)
@@ -38,6 +47,8 @@ def create_worker_settings(container: Container) -> type:
             cron(fn_cron_flush_outbox, minute=set(range(60)), second=0),
             # Slot generator every day at 02:00
             cron(fn_cron_generate_slots, hour=2, minute=0, second=0),
+            # Google Calendar reconciliation every 5 minutes
+            cron(fn_cron_reconcile_gcal, minute=set(range(0, 60, 5)), second=0),
         ]
         redis_settings = RedisSettings.from_dsn(container.settings.REDIS_URL)
         max_jobs = 10

@@ -224,7 +224,7 @@ class BookingFlowHandlers:
         """Finalizes the booking."""
         if text.lower() in ["si", "sí", "confirmar", "ok", "1"]:
             try:
-                await self._svc.create_booking(
+                booking = await self._svc.create_booking(
                     state.chat_id, state.booking_draft["slot_id"]
                 )
                 await self._sender.send_message(
@@ -233,7 +233,9 @@ class BookingFlowHandlers:
                 )
                 state.transition_to(FSMState.IDLE)
                 state.booking_draft = {}
-                state.context = {}
+                state.context = {
+                    "gcal_sync_pending": [{"action": "create", "booking_id": booking.id}]
+                }
                 await self._on_idle(state, "")
             except Exception as e:
                 logger.error("Booking creation failed", error=str(e))
@@ -372,7 +374,10 @@ class BookingFlowHandlers:
                         "❌ No se pudo cancelar la cita. Por favor intenta más tarde.",
                     )
                 state.transition_to(FSMState.IDLE)
-                state.context = {}
+                state.booking_draft = {}
+                state.context = {
+                    "gcal_sync_pending": [{"action": "delete", "booking_id": selected_booking_id}]
+                }
                 await self._on_idle(state, "")
                 return
 
@@ -486,9 +491,10 @@ class BookingFlowHandlers:
                     selected = True
                     new_slot_id = items[idx]["id"]
                     try:
+                        old_booking_id = int(state.booking_draft["old_booking_id"])
                         new_booking, old_slot_id = await self._svc.reschedule_booking(
                             state.chat_id,
-                            state.booking_draft["old_booking_id"],
+                            old_booking_id,
                             new_slot_id,
                         )
                         await self._sender.send_message(
@@ -508,17 +514,29 @@ class BookingFlowHandlers:
                             await pool.close()
                         except Exception as e:
                             logger.error("Failed to enqueue waitlist on reschedule", error=str(e))
+                        
+                        # Success: Transition and queue GCal actions
+                        state.transition_to(FSMState.IDLE)
+                        state.booking_draft = {}
+                        state.context = {
+                            "gcal_sync_pending": [
+                                {"action": "delete", "booking_id": old_booking_id},
+                                {"action": "create", "booking_id": new_booking.id}
+                            ]
+                        }
+                        await self._on_idle(state, "")
+                        return
                     except Exception as e:
                         logger.error("Rescheduling failed", error=str(e))
                         await self._sender.send_message(
                             state.chat_id,
                             "❌ No se pudo reagendar. Por favor intenta más tarde.",
                         )
-
-                    state.transition_to(FSMState.IDLE)
-                    state.context = {}
-                    state.booking_draft = {}
-                    await self._on_idle(state, "")
+                        state.transition_to(FSMState.IDLE)
+                        state.context = {}
+                        state.booking_draft = {}
+                        await self._on_idle(state, "")
+                        return
         
             if not selected:
                 await self._render_reschedule_slots_menu(state)

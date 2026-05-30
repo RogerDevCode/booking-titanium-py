@@ -30,14 +30,15 @@ class RAGService:
             )
             SELECT title, category, content, provider_id, ts_rank(search_vector, q.query) AS rank
             FROM knowledge_base, q
-            WHERE (provider_id IS NULL OR provider_id = $2::uuid)
+            WHERE (provider_id IS NULL OR provider_id = $2)
               AND is_active = true
               AND q.query @@ search_vector
             ORDER BY rank DESC
             LIMIT $3
         """
         try:
-            rows = await self._db.fetch(query, text, provider_id, limit)
+            pid = int(provider_id) if provider_id else None
+            rows = await self._db.fetch(query, text, pid, limit)
             return [
                 KBEntry(
                     title=r['title'],

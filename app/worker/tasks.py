@@ -156,6 +156,25 @@ def make_process_message(container):
                     # 8. Save Updated State
                     await container.conversation_tx.set_state(state)
                 
+                # Check for GCal sync trigger after transaction commits successfully
+                pending_syncs = state.context.get("gcal_sync_pending")
+                if pending_syncs:
+                    try:
+                        arq_pool = await container.redis_client.get_arq_pool()
+                        for sync in pending_syncs:
+                            action = sync["action"]
+                            bid = sync["booking_id"]
+                            if action == "create":
+                                await arq_pool.enqueue_job("sync_booking_to_gcal", bid)
+                            elif action == "delete":
+                                await arq_pool.enqueue_job("delete_gcal_event", bid)
+                        
+                        # Remove pending syncs from state context so they aren't processed again, and save
+                        state.context.pop("gcal_sync_pending", None)
+                        await container.conversation_tx.set_state(state)
+                    except Exception as sync_err:
+                        logger.error("Failed to enqueue GCal sync jobs", error=str(sync_err))
+                
                 # 9. OUTBOX FLUSH: Outside the DB transaction, send accumulated messages
                 await container.telegram_sender.flush_outbox(chat_id)
 
@@ -357,3 +376,27 @@ def make_generate_user_report_pdf(container):
             await container.telegram_sender.send_message(chat_id, "❌ Hubo un error al generar tu PDF. Por favor, intenta más tarde.")
 
     return generate_user_report_pdf
+
+
+def make_sync_booking_to_gcal(container):
+    async def sync_booking_to_gcal(ctx: dict, booking_id: int) -> None:
+        """Background job to sync booking to Google Calendar."""
+        logger.info("Worker sync_booking_to_gcal running", booking_id=booking_id)
+        await container.gcal_service.sync_booking_to_gcal(booking_id)
+    return sync_booking_to_gcal
+
+
+def make_delete_gcal_event(container):
+    async def delete_gcal_event(ctx: dict, booking_id: int) -> None:
+        """Background job to delete event from Google Calendar."""
+        logger.info("Worker delete_gcal_event running", booking_id=booking_id)
+        await container.gcal_service.delete_gcal_event(booking_id)
+    return delete_gcal_event
+
+
+def make_cron_reconcile_gcal(container):
+    async def cron_reconcile_gcal(ctx: dict) -> None:
+        """Cron job to reconcile Google Calendar and DB discrepancies."""
+        logger.info("Worker cron_reconcile_gcal running")
+        await container.gcal_service.reconcile_all()
+    return cron_reconcile_gcal

@@ -24,6 +24,7 @@ from app.domain.entities import (
     Provider,
     Specialty,
     TelegramUser,
+    ReminderPreferences,
 )
 from app.domain.models import ConversationState
 
@@ -86,6 +87,10 @@ class RedisClientProtocol(Protocol):
     @property
     def client(self) -> Any:
         """Retorna el cliente Redis nativo (redis.asyncio.Redis)."""
+        ...
+
+    async def get_arq_pool(self) -> Any:
+        """Retorna el pool de conexiones arq (ArqRedis)."""
         ...
 
     def get_chat_lock(
@@ -230,6 +235,14 @@ class UserServiceProtocol(Protocol):
         self, user_id: int, field: str, value: str
     ) -> bool: ...
 
+    async def get_reminder_preferences(
+        self, user_id: int
+    ) -> ReminderPreferences: ...
+
+    async def update_reminder_preference(
+        self, user_id: int, field: str
+    ) -> ReminderPreferences: ...
+
 
 class AIServiceProtocol(Protocol):
     """Contrato para el servicio de IA (LLM)."""
@@ -268,6 +281,18 @@ class NotificationServiceProtocol(Protocol):
     async def send_reminders(self) -> None: ...
 
     async def auto_cancel_expired_bookings(self) -> None: ...
+
+
+class GCalServiceProtocol(Protocol):
+    """Contrato para el servicio de sincronización de Google Calendar."""
+
+    async def sync_booking_to_gcal(self, booking_id: int) -> None: ...
+
+    async def delete_gcal_event(self, booking_id: int) -> None: ...
+
+    async def reconcile_all(
+        self, max_retries: int = 5, batch_size: int = 20
+    ) -> dict[str, Any]: ...
 
 
 class SlotEngineProtocol(Protocol):

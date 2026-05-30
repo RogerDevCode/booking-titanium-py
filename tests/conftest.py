@@ -10,7 +10,7 @@ from app.domain.protocols import (
     DatabaseClientProtocol, RedisClientProtocol, BookingRepositoryProtocol,
     BookingServiceProtocol, UserServiceProtocol, TelegramSenderProtocol,
     AIServiceProtocol, RAGServiceProtocol, ConversationTransactionProtocol,
-    SlotEngineProtocol, NotificationServiceProtocol
+    SlotEngineProtocol, NotificationServiceProtocol, GCalServiceProtocol
 )
 from app.container import Container
 from app.pipeline.preprocessor import MessagePreprocessor
@@ -86,6 +86,10 @@ def fake_rag_service() -> AsyncMock:
     return AsyncMock(spec=RAGServiceProtocol)
 
 @pytest.fixture
+def fake_gcal_service() -> AsyncMock:
+    return AsyncMock(spec=GCalServiceProtocol)
+
+@pytest.fixture
 def fake_conversation_tx() -> AsyncMock:
     return AsyncMock(spec=ConversationTransactionProtocol)
 
@@ -94,7 +98,7 @@ def fake_container(
     fake_db, fake_redis, fake_sender, fake_booking_repo,
     fake_conversation_tx, fake_booking_service, fake_user_service,
     fake_notification_service, fake_slot_engine, fake_ai_service,
-    fake_rag_service
+    fake_rag_service, fake_gcal_service
 ) -> Container:
     prep = MessagePreprocessor()
     clsf = IntentClassifier()
@@ -122,7 +126,8 @@ def fake_container(
         classifier=clsf,
         fsm_router=router,
         ai_service=fake_ai_service,
-        rag_service=fake_rag_service
+        rag_service=fake_rag_service,
+        gcal_service=fake_gcal_service
     )
 
 
@@ -136,12 +141,19 @@ async def integration_container():
     await container.db_client.connect()
     await container.redis_client.connect()
     
-    # Run the schema creation
-    with open('tests/schema.sql', 'r') as sql_file:
-        schema = sql_file.read()
-        
+    # Run the schema creation from master migrations
+    migrations = [
+        'db/migrations/001_schema.sql',
+        'db/migrations/002_rls_policies.sql',
+        'db/migrations/003_functions.sql',
+        'db/migrations/005_provider_gcal.sql'
+    ]
     async with container.db_client._pool.acquire() as conn: # type: ignore
-        await conn.execute(schema)
+        await conn.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
+        for migration_path in migrations:
+            with open(migration_path, 'r') as sql_file:
+                sql_content = sql_file.read()
+                await conn.execute(sql_content)
         
     yield container
     

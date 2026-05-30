@@ -17,7 +17,8 @@ FSM_TRANSITIONS: Dict[FSMState, Set[FSMState]] = {
         FSMState.RESCHEDULING_BOOKING,
         FSMState.WAITING_FAQ,
         FSMState.UPDATING_PROFILE,
-        FSMState.VIEWING_REPORT
+        FSMState.VIEWING_REPORT,
+        FSMState.CONFIGURING_REMINDERS
     },
     FSMState.SELECTING_SPECIALTY: {
         FSMState.IDLE,
@@ -60,6 +61,9 @@ FSM_TRANSITIONS: Dict[FSMState, Set[FSMState]] = {
         FSMState.IDLE
     },
     FSMState.VIEWING_REPORT: {
+        FSMState.IDLE
+    },
+    FSMState.CONFIGURING_REMINDERS: {
         FSMState.IDLE
     }
 }

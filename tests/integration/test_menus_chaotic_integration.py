@@ -7,8 +7,8 @@ from app.worker.tasks import make_process_message
 
 @pytest.fixture
 async def setup_chaotic_test(integration_container, clean_db_and_redis):
-    spec_id = "11111111-1111-1111-1111-111111111111"
-    doc_id = "22222222-2222-2222-2222-222222222222"
+    spec_id = "11111111"
+    doc_id = "22222222"
     
     # Mock Telegram API calls
     mock_post = AsyncMock()
@@ -16,12 +16,14 @@ async def setup_chaotic_test(integration_container, clean_db_and_redis):
     mock_post.return_value.raise_for_status = AsyncMock()
     integration_container.telegram_sender._client = type("MockClient", (), {"post": mock_post})()
     
-    await integration_container.db_client.execute(f"INSERT INTO specialties (id, name) VALUES ('{spec_id}', 'Especialidad_Test') ON CONFLICT DO NOTHING")
     await integration_container.db_client.execute(
-        f"INSERT INTO providers (id, name, specialty_id, is_active) VALUES ('{doc_id}', 'Dr. Test', '{spec_id}', true) ON CONFLICT DO NOTHING"
+        f"INSERT INTO specialties (id, name) OVERRIDING SYSTEM VALUE VALUES ({spec_id}, 'Especialidad_Test') ON CONFLICT DO NOTHING"
     )
     await integration_container.db_client.execute(
-        f"INSERT INTO slots (provider_id, start_time, end_time, is_available) VALUES ('{doc_id}', '2030-01-01 10:00:00+00', '2030-01-01 10:30:00+00', true)"
+        f"INSERT INTO providers (id, name, specialty_id, is_active) OVERRIDING SYSTEM VALUE VALUES ({doc_id}, 'Dr. Test', {spec_id}, true) ON CONFLICT DO NOTHING"
+    )
+    await integration_container.db_client.execute(
+        f"INSERT INTO slots (provider_id, start_time, end_time, is_available) VALUES ({doc_id}, '2030-01-01 10:00:00+00', '2030-01-01 10:30:00+00', true)"
     )
 
     process_message = make_process_message(integration_container)

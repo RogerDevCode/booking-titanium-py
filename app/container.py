@@ -12,7 +12,8 @@ from app.domain.protocols import (
     SlotEngineProtocol,
     AIServiceProtocol,
     RAGServiceProtocol,
-    ConversationTransactionProtocol
+    ConversationTransactionProtocol,
+    GCalServiceProtocol
 )
 from app.pipeline.preprocessor import MessagePreprocessor
 from app.pipeline.classifier import IntentClassifier
@@ -34,6 +35,7 @@ class Container:
     slot_engine: SlotEngineProtocol
     ai_service: AIServiceProtocol
     rag_service: RAGServiceProtocol
+    gcal_service: GCalServiceProtocol
     
     preprocessor: MessagePreprocessor
     classifier: IntentClassifier
@@ -70,6 +72,9 @@ def build_container(s: Settings = settings) -> Container:
     ai_svc = AIService(circuit_breaker=llm_cb)
     rag_svc = RAGService(db=db)
     
+    from app.services.gcal_service import GCalService
+    gcal_svc = GCalService(db=db, settings=s)
+    
     prep = MessagePreprocessor()
     clsf = IntentClassifier()
     
@@ -93,6 +98,7 @@ def build_container(s: Settings = settings) -> Container:
         notification_service=n_svc,
         ai_service=ai_svc,
         rag_service=rag_svc,
+        gcal_service=gcal_svc,
         slot_engine=s_eng,
         preprocessor=prep,
         classifier=clsf,

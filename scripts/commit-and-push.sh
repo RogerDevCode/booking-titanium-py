@@ -5,6 +5,7 @@
 # =============================================================================
 
 set -euo pipefail
+export PYTHONPATH=.
 
 # ── CONFIGURACIÓN ────────────────────────────────────────────────────────────
 EXPECTED_REMOTE="git@github.com:RogerDevCode/booking-titanium-py.git"
@@ -68,10 +69,10 @@ fi
 # Pyright
 if [[ -f "$PYRIGHT" ]]; then
     echo "  → Pyright check..."
-    "$PYRIGHT" . || error_exit "Pyright detectó errores."
+    "$PYRIGHT" || error_exit "Pyright detectó errores."
 elif command -v pyright &>/dev/null; then
     echo "  → Pyright check (global)..."
-    pyright . || error_exit "Pyright detectó errores."
+    pyright || error_exit "Pyright detectó errores."
 else
     echo "  ⚠️ Pyright no encontrado, saltando..."
 fi

@@ -15,6 +15,9 @@ class RedisClient:
             logger.info("Connected to Redis", url=self._redis_url)
 
     async def disconnect(self):
+        if hasattr(self, "_arq_pool") and self._arq_pool is not None:
+            await self._arq_pool.close()
+            self._arq_pool = None
         if self._redis:
             await self._redis.aclose()
             self._redis = None
@@ -24,6 +27,13 @@ class RedisClient:
         if self._redis is None:
             raise RuntimeError("RedisClient not connected")
         return self._redis
+
+    async def get_arq_pool(self):
+        if not hasattr(self, "_arq_pool") or self._arq_pool is None:
+            from arq import create_pool
+            from arq.connections import RedisSettings
+            self._arq_pool = await create_pool(RedisSettings.from_dsn(self._redis_url))
+        return self._arq_pool
 
     @asynccontextmanager
     async def get_chat_lock(self, chat_id: int, timeout: int = 30) -> AsyncGenerator[None, None]:

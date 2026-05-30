@@ -56,20 +56,20 @@ class BookingRepository:
                 old_slot_id = old_row['slot_id']
 
                 query_new = "SELECT id FROM slots WHERE id = $1 AND is_available = true FOR UPDATE"
-                new_row = await conn.fetchrow(query_new, new_slot_id)
+                new_row = await conn.fetchrow(query_new, int(new_slot_id))
                 if not new_row:
                     raise ValueError("New slot no longer available")
 
                 await conn.execute("UPDATE bookings SET status = 'CANCELLED', updated_at = NOW() WHERE id = $1", old_booking_id)
                 await conn.execute("UPDATE slots SET is_available = true WHERE id = $1", old_slot_id)
-                await conn.execute("UPDATE slots SET is_available = false WHERE id = $1", new_slot_id)
+                await conn.execute("UPDATE slots SET is_available = false WHERE id = $1", int(new_slot_id))
 
                 query_insert = """
                     INSERT INTO bookings (user_id, slot_id, status)
                     VALUES ($1, $2, $3)
                     RETURNING id, user_id, slot_id, status, created_at, updated_at
                 """
-                row = await conn.fetchrow(query_insert, user_id, new_slot_id, BookingStatus.CONFIRMED.value)
+                row = await conn.fetchrow(query_insert, user_id, int(new_slot_id), BookingStatus.CONFIRMED.value)
                 
                 booking = Booking(
                     id=row['id'],
@@ -95,12 +95,14 @@ class BookingRepository:
             SELECT 
                 id::text AS id, name, specialty_id::text AS specialty_id, bio, is_active,
                 waitlist_batch_size, waitlist_delay_minutes, slot_duration_minutes, 
-                buffer_time_minutes, notice_period_hours
+                buffer_time_minutes, notice_period_hours,
+                gcal_calendar_id, gcal_access_token, gcal_refresh_token,
+                gcal_client_id, gcal_client_secret
             FROM providers 
             WHERE specialty_id = $1 AND is_active = true 
             ORDER BY name ASC
         """
-        rows = await self._db.fetch(query, specialty_id)
+        rows = await self._db.fetch(query, int(specialty_id))
         return [
             Provider(
                 id=r['id'], 
@@ -112,7 +114,12 @@ class BookingRepository:
                 waitlist_delay_minutes=r.get('waitlist_delay_minutes', 15),
                 slot_duration_minutes=r.get('slot_duration_minutes', 30),
                 buffer_time_minutes=r.get('buffer_time_minutes', 0),
-                notice_period_hours=r.get('notice_period_hours', 4)
+                notice_period_hours=r.get('notice_period_hours', 4),
+                gcal_calendar_id=r.get('gcal_calendar_id'),
+                gcal_access_token=r.get('gcal_access_token'),
+                gcal_refresh_token=r.get('gcal_refresh_token'),
+                gcal_client_id=r.get('gcal_client_id'),
+                gcal_client_secret=r.get('gcal_client_secret')
             ) for r in rows
         ]
 
@@ -123,25 +130,25 @@ class BookingRepository:
             WHERE provider_id = $1 AND is_available = true AND start_time > NOW()
             ORDER BY start_time ASC LIMIT $2
         """
-        rows = await self._db.fetch(query, provider_id, limit)
+        rows = await self._db.fetch(query, int(provider_id), limit)
         return [AppointmentSlot(id=r['id'], doctor_id=r['doctor_id'], start_time=r['start_time'], end_time=r['end_time'], is_available=r['is_available']) for r in rows]
 
     async def create_booking_tx(self, user_id: int, slot_id: str) -> Booking:
         async with self._db.pool.acquire() as conn:
             async with conn.transaction():
                 query_slot = "SELECT id FROM slots WHERE id = $1 AND is_available = true FOR UPDATE"
-                slot = await conn.fetchrow(query_slot, slot_id)
+                slot = await conn.fetchrow(query_slot, int(slot_id))
                 if not slot:
                     raise ValueError("Slot no longer available")
 
-                await conn.execute("UPDATE slots SET is_available = false WHERE id = $1", slot_id)
+                await conn.execute("UPDATE slots SET is_available = false WHERE id = $1", int(slot_id))
 
                 query_booking = """
                     INSERT INTO bookings (user_id, slot_id, status)
                     VALUES ($1, $2, $3)
                     RETURNING id, user_id, slot_id, status, created_at, updated_at
                 """
-                row = await conn.fetchrow(query_booking, user_id, slot_id, BookingStatus.CONFIRMED.value)
+                row = await conn.fetchrow(query_booking, user_id, int(slot_id), BookingStatus.CONFIRMED.value)
                 
                 return Booking(
                     id=row['id'],
@@ -163,11 +170,11 @@ class BookingRepository:
             VALUES ($1, $2)
             ON CONFLICT (user_id, provider_id, status) DO NOTHING
         """
-        await self._db.execute(query, user_id, provider_id)
+        await self._db.execute(query, user_id, int(provider_id))
 
     async def get_provider_id_by_slot(self, slot_id: str) -> Optional[str]:
         query = "SELECT provider_id::text FROM slots WHERE id = $1"
-        row = await self._db.fetchrow(query, slot_id)
+        row = await self._db.fetchrow(query, int(slot_id))
         return row['provider_id'] if row else None
 
     async def get_history_by_month(self, user_id: int, year: int, month: int) -> List[BookingView]:

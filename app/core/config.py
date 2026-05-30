@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: Optional[str] = None
     GROQ_API_KEY: Optional[str] = None
 
+    # Google Calendar API
+    GCALENDAR_CLIENT_ID: Optional[str] = None
+    GCALENDAR_CLIENT_SECRET: Optional[str] = None
+    GCALENDAR_API_KEY: Optional[str] = None
+
     # Worker
     WORKER_TIMEOUT: int = 1800
     

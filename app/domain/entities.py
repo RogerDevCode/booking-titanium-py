@@ -33,6 +33,11 @@ class Provider(BaseModel):
     slot_duration_minutes: int = 30
     buffer_time_minutes: int = 0
     notice_period_hours: int = 4
+    gcal_calendar_id: Optional[str] = None
+    gcal_access_token: Optional[str] = None
+    gcal_refresh_token: Optional[str] = None
+    gcal_client_id: Optional[str] = None
+    gcal_client_secret: Optional[str] = None
 
 class AppointmentSlot(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -96,3 +101,12 @@ class ProviderException(BaseModel):
     reason: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+
+class ReminderPreferences(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    user_id: int
+    telegram_enabled: bool = True
+    email_enabled: bool = False
+    window_24h: bool = True
+    window_2h: bool = True
+    updated_at: Optional[datetime] = None
