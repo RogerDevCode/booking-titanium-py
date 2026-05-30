@@ -140,7 +140,7 @@ async def integration_container():
     with open('tests/schema.sql', 'r') as sql_file:
         schema = sql_file.read()
         
-    async with container.db_client._pool.acquire() as conn:
+    async with container.db_client._pool.acquire() as conn: # type: ignore
         await conn.execute(schema)
         
     yield container
@@ -151,7 +151,7 @@ async def integration_container():
 @pytest_asyncio.fixture(scope='function')
 async def clean_db_and_redis(integration_container):
     # Truncate tables and flush redis
-    async with integration_container.db_client._pool.acquire() as conn:
+    async with integration_container.db_client._pool.acquire() as conn: # type: ignore
         await conn.execute("""
             TRUNCATE TABLE 
                 outbox_messages, 

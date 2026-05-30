@@ -575,11 +575,11 @@ class BookingFlowHandlers:
 
         if text == "1": # Cancelar
             state.transition_to(FSMState.CANCELLING_BOOKING)
-            await cancellation_handler(state, "")
+            await self.cancellation_handler(state, "")
             return
         elif text == "2": # Reagendar
             state.transition_to(FSMState.RESCHEDULING_BOOKING)
-            await reschedule_handler(state, "")
+            await self.reschedule_handler(state, "")
             return
         elif text == "3" or text.lower() in ["volver", "menu"]:
             state.transition_to(FSMState.IDLE)
@@ -605,20 +605,3 @@ class BookingFlowHandlers:
 
         kb = self._sender.build_inline_keyboard(["Cancelar Cita", "Reagendar Cita"], state.version, include_nav=True)
         await self._sender.send_message(state.chat_id, msg, reply_markup=kb)
-
-# Temporary proxies for backwards compatibility during DI refactor phase 5
-
-async def _get_booking_flow_handlers():
-    from app.fsm.main import fsm_router
-    return fsm_router._booking_flow
-
-async def selecting_specialty_handler(state, text): return await (await _get_booking_flow_handlers()).selecting_specialty_handler(state, text)
-async def selecting_doctor_handler(state, text): return await (await _get_booking_flow_handlers()).selecting_doctor_handler(state, text)
-async def selecting_time_handler(state, text): return await (await _get_booking_flow_handlers()).selecting_time_handler(state, text)
-async def confirming_booking_handler(state, text): return await (await _get_booking_flow_handlers()).confirming_booking_handler(state, text)
-async def my_bookings_handler(state, text): return await (await _get_booking_flow_handlers()).my_bookings_handler(state, text)
-async def cancellation_handler(state, text): return await (await _get_booking_flow_handlers()).cancellation_handler(state, text)
-async def reschedule_handler(state, text): return await (await _get_booking_flow_handlers()).reschedule_handler(state, text)
-async def joining_waitlist_handler(state, text): return await (await _get_booking_flow_handlers()).joining_waitlist_handler(state, text)
-
-async def _render_time_menu(self, state): return await (await _get_booking_flow_handlers()).self._render_time_menu(state)

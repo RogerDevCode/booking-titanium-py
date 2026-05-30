@@ -1,0 +1,6 @@
+{
+    "include": ["app", "tests"],
+    "exclude": ["f/"],
+    "venvPath": ".",
+    "venv": ".venv"
+}

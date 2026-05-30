@@ -151,6 +151,12 @@ _pii_anonymizer = None
 class MessagePreprocessor:
     """Orchestrates the full preprocessing pipeline."""
     
+    threat_scanner: ThreatScanner
+    modism_mapper: ModismMapper
+    spell_normalizer: SpellNormalizer
+    cleaner: TextCleaner
+    pii_anonymizer: PIIAnonymizer
+
     def __init__(self):
         global _threat_scanner, _modism_mapper, _spell_normalizer, _cleaner, _pii_anonymizer
         
@@ -161,11 +167,11 @@ class MessagePreprocessor:
             _cleaner = TextCleaner()
             _pii_anonymizer = PIIAnonymizer()
             
-        self.threat_scanner = _threat_scanner
-        self.modism_mapper = _modism_mapper
-        self.spell_normalizer = _spell_normalizer
-        self.cleaner = _cleaner
-        self.pii_anonymizer = _pii_anonymizer
+        self.threat_scanner = _threat_scanner # type: ignore
+        self.modism_mapper = _modism_mapper # type: ignore
+        self.spell_normalizer = _spell_normalizer # type: ignore
+        self.cleaner = _cleaner # type: ignore
+        self.pii_anonymizer = _pii_anonymizer # type: ignore
 
     def preprocess(self, raw_text: str) -> PreprocessorOutput:
         # 1. Security Scan (Scan RAW text to catch XSS before cleaning)

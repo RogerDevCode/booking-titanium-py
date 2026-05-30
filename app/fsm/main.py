@@ -155,6 +155,10 @@ class FSMRouter:
                     payload_version=payload.version, 
                     state_version=state.version
                 )
+                await self._sender.send_message(
+                    state.chat_id,
+                    "⚠️ Ese menú ha expirado. Por favor usa las opciones más recientes o envía /start para reiniciar."
+                )
                 return
             text = payload.value
 
@@ -174,7 +178,7 @@ class FSMRouter:
             await self._idle_handler(state, "")
             return
 
-        if text_lower == "cancel":
+        if text_lower in ["cancel", "cancelar", "salir", "abortar", "quiero cancelar", "detener", "/cancel", "/cancelar", "/salir"]:
             if state.state == FSMState.IDLE:
                 return
             await self._sender.send_message(state.chat_id, "❌ Operación cancelada. Volviendo al inicio.")
@@ -183,8 +187,20 @@ class FSMRouter:
             state.booking_draft = {}
             await self._idle_handler(state, "")
             return
+
+        # Si es un comando con '/' que no fue capturado arriba, y estamos en medio de un flujo
+        if text_lower.startswith("/") and state.state != FSMState.IDLE:
+            await self._sender.send_message(
+                state.chat_id, 
+                "⚠️ Estás en medio de un proceso. Por favor termina, usa el botón 'Atrás' o envía /cancel para salir."
+            )
+            # Re-render the current menu without advancing state
+            handler = self._handlers.get(state.state)
+            if handler:
+                await handler(state, "") # Send empty string to trigger re-render
+            return
             
-        if text_lower == "back":
+        if text_lower in ["back", "atrás"]:
             if state.state == FSMState.IDLE:
                 return
             if state.state == FSMState.SELECTING_DOCTOR:
@@ -192,22 +208,29 @@ class FSMRouter:
                 state.context = {}
                 state.booking_draft.pop("specialty_id", None)
                 state.booking_draft.pop("specialty_name", None)
-                state.context["preflight"] = {"intent": Intent.BOOK_APPOINTMENT}
-                await self._idle_handler(state, "")
+                await self._booking_flow._render_specialties_menu(state)
                 return
             elif state.state == FSMState.SELECTING_TIME:
                 state.transition_to(FSMState.SELECTING_DOCTOR)
                 state.context = {}
                 state.booking_draft.pop("doctor_id", None)
                 state.booking_draft.pop("doctor_name", None)
-                await self._booking_flow.selecting_specialty_handler(state, state.booking_draft.get("specialty_name", ""))
+                # Re-fetch doctors and render
+                doctors = await self._booking_svc.get_providers_by_specialty(state.booking_draft["specialty_id"])
+                state.context["items"] = [{"id": d.id, "name": d.name} for d in doctors]
+                state.context["page"] = 0
+                await self._booking_flow._render_doctors_menu(state)
                 return
             elif state.state == FSMState.CONFIRMING_BOOKING:
                 state.transition_to(FSMState.SELECTING_TIME)
                 state.context = {}
                 state.booking_draft.pop("slot_id", None)
                 state.booking_draft.pop("slot_time", None)
-                await self._booking_flow.selecting_doctor_handler(state, state.booking_draft.get("doctor_name", ""))
+                # Re-fetch slots and render
+                slots = await self._booking_svc.get_available_slots(state.booking_draft["doctor_id"])
+                state.context["items"] = [{"id": s.id, "time": s.start_time.isoformat()} for s in slots]
+                state.context["page"] = 0
+                await self._booking_flow._render_time_menu(state)
                 return
             else:
                 state.transition_to(FSMState.IDLE)

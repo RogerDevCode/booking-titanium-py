@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Any
 from app.domain.protocols import DatabaseClientProtocol
 
 from app.domain.entities import TelegramUser
@@ -48,7 +48,7 @@ class UserService:
             user.address,
             user.rut
         )
-        row_dict = dict(row) # type: ignore
+        row_dict: dict[str, Any] = dict(row) # type: ignore
         is_new = row_dict.pop("is_new", False)
         return TelegramUser.model_validate(row_dict), is_new
 

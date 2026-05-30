@@ -85,7 +85,7 @@ class ProfileFlowHandlers:
             # User typed "volver" manually while waiting for input
             if text.lower() in ["volver", "cancelar", "atras"]:
                 state.context["step"] = "menu"
-                await my_data_handler(state, "")
+                await self.my_data_handler(state, "")
                 return
 
             # Validation
@@ -148,7 +148,3 @@ class ProfileFlowHandlers:
                 kb = self._sender.build_inline_keyboard(["Nombre", "Teléfono", "Email", "Dirección", "RUT (Opcional)", "Volver al Menú"], state.version)
                 await self._sender.send_message(state.chat_id, msg, reply_markup=kb)
 
-async def _get_profile_flow_handlers():
-    from app.fsm.main import fsm_router
-    return fsm_router._profile_flow
-async def my_data_handler(state, text): return await (await _get_profile_flow_handlers()).my_data_handler(state, text)

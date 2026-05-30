@@ -4,7 +4,7 @@ from typing import Optional
 from contextlib import asynccontextmanager
 
 # Context variable to hold the active transaction connection
-_transaction_conn = contextvars.ContextVar("_transaction_conn", default=None)
+_transaction_conn: contextvars.ContextVar[Optional[asyncpg.pool.PoolConnectionProxy]] = contextvars.ContextVar("_transaction_conn", default=None)
 
 class DatabaseClient:
     def __init__(self, dsn: str, pool_size: int = 10) -> None:

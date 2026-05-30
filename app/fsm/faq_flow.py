@@ -48,7 +48,3 @@ class FAQFlowHandlers:
         )
         await self._sender.send_message(state.chat_id, msg, reply_markup=kb)
 
-async def _get_faq_flow_handlers():
-    from app.fsm.main import fsm_router
-    return fsm_router._faq_flow
-async def waiting_faq_handler(state, text): return await (await _get_faq_flow_handlers()).waiting_faq_handler(state, text)

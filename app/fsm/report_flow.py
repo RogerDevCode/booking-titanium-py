@@ -87,7 +87,3 @@ class ReportFlowHandlers:
 
         await self._sender.send_message(state.chat_id, msg, reply_markup={"inline_keyboard": kb})
 
-async def _get_report_flow_handlers():
-    from app.fsm.main import fsm_router
-    return fsm_router._report_flow
-async def report_handler(state, text): return await (await _get_report_flow_handlers()).report_handler(state, text)
