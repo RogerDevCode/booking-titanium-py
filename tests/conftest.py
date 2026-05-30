@@ -10,7 +10,8 @@ from app.domain.protocols import (
     DatabaseClientProtocol, RedisClientProtocol, BookingRepositoryProtocol,
     BookingServiceProtocol, UserServiceProtocol, TelegramSenderProtocol,
     AIServiceProtocol, RAGServiceProtocol, ConversationTransactionProtocol,
-    SlotEngineProtocol, NotificationServiceProtocol, GCalServiceProtocol
+    SlotEngineProtocol, NotificationServiceProtocol, GCalServiceProtocol,
+    AuthServiceProtocol
 )
 from app.container import Container
 from app.pipeline.preprocessor import MessagePreprocessor
@@ -90,6 +91,10 @@ def fake_gcal_service() -> AsyncMock:
     return AsyncMock(spec=GCalServiceProtocol)
 
 @pytest.fixture
+def fake_auth_service() -> AsyncMock:
+    return AsyncMock(spec=AuthServiceProtocol)
+
+@pytest.fixture
 def fake_conversation_tx() -> AsyncMock:
     return AsyncMock(spec=ConversationTransactionProtocol)
 
@@ -98,7 +103,7 @@ def fake_container(
     fake_db, fake_redis, fake_sender, fake_booking_repo,
     fake_conversation_tx, fake_booking_service, fake_user_service,
     fake_notification_service, fake_slot_engine, fake_ai_service,
-    fake_rag_service, fake_gcal_service
+    fake_rag_service, fake_gcal_service, fake_auth_service
 ) -> Container:
     prep = MessagePreprocessor()
     clsf = IntentClassifier()
@@ -127,7 +132,8 @@ def fake_container(
         fsm_router=router,
         ai_service=fake_ai_service,
         rag_service=fake_rag_service,
-        gcal_service=fake_gcal_service
+        gcal_service=fake_gcal_service,
+        auth_service=fake_auth_service
     )
 
 
@@ -146,7 +152,8 @@ async def integration_container():
         'db/migrations/001_schema.sql',
         'db/migrations/002_rls_policies.sql',
         'db/migrations/003_functions.sql',
-        'db/migrations/005_provider_gcal.sql'
+        'db/migrations/005_provider_gcal.sql',
+        'db/migrations/006_web_auth.sql'
     ]
     async with container.db_client._pool.acquire() as conn: # type: ignore
         await conn.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")

@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     # Worker
     WORKER_TIMEOUT: int = 1800
     
+    # JWT Auth
+    JWT_SECRET: str = "super-secret-titanium-key-123456!"
+
     # Logging
     LOG_LEVEL: str = "INFO"
 

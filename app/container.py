@@ -13,7 +13,8 @@ from app.domain.protocols import (
     AIServiceProtocol,
     RAGServiceProtocol,
     ConversationTransactionProtocol,
-    GCalServiceProtocol
+    GCalServiceProtocol,
+    AuthServiceProtocol
 )
 from app.pipeline.preprocessor import MessagePreprocessor
 from app.pipeline.classifier import IntentClassifier
@@ -36,6 +37,7 @@ class Container:
     ai_service: AIServiceProtocol
     rag_service: RAGServiceProtocol
     gcal_service: GCalServiceProtocol
+    auth_service: AuthServiceProtocol
     
     preprocessor: MessagePreprocessor
     classifier: IntentClassifier
@@ -75,6 +77,9 @@ def build_container(s: Settings = settings) -> Container:
     from app.services.gcal_service import GCalService
     gcal_svc = GCalService(db=db, settings=s)
     
+    from app.services.auth_service import AuthService
+    auth_svc = AuthService(db=db, settings=s)
+    
     prep = MessagePreprocessor()
     clsf = IntentClassifier()
     
@@ -99,6 +104,7 @@ def build_container(s: Settings = settings) -> Container:
         ai_service=ai_svc,
         rag_service=rag_svc,
         gcal_service=gcal_svc,
+        auth_service=auth_svc,
         slot_engine=s_eng,
         preprocessor=prep,
         classifier=clsf,

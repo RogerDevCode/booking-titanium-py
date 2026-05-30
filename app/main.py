@@ -25,8 +25,11 @@ def create_app() -> FastAPI:
     webhook_router = create_webhook_router(container)
     app.include_router(webhook_router, prefix="/api/v1", tags=["telegram"])
     
-    from app.api.v1 import provider
+    from app.api.v1 import provider, auth, admin, dashboard
     app.include_router(provider.router, prefix="/api/v1", tags=["provider"])
+    app.include_router(auth.router, prefix="/api/v1", tags=["auth"])
+    app.include_router(admin.router, prefix="/api/v1", tags=["admin"])
+    app.include_router(dashboard.router, prefix="/api/v1", tags=["dashboard"])
 
     # Set container in app state so middleware/endpoints can access it if needed
     app.state.container = container

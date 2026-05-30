@@ -391,3 +391,22 @@ class FSMRouterProtocol(Protocol):
     async def route(
         self, state: ConversationState, text: str
     ) -> None: ...
+
+
+class AuthServiceProtocol(Protocol):
+    """
+    Contrato para el servicio de autenticación y autorización web (JWT).
+    """
+
+    async def authenticate_web_user(self, email: str, password: str) -> Optional[Dict[str, Any]]: ...
+
+    async def register_web_user(
+        self, email: str, password: str, role: str, provider_id: Optional[int] = None
+    ) -> Dict[str, Any]: ...
+
+    def generate_jwt(
+        self, user_id: int, email: str, role: str, provider_id: Optional[int] = None
+    ) -> str: ...
+
+    def decode_jwt(self, token: str) -> Optional[Dict[str, Any]]: ...
+
