@@ -1,5 +1,5 @@
-from typing import List, Optional
-from app.domain.entities import Booking, BookingView, Specialty, Provider, AppointmentSlot
+from typing import List, Optional, Dict, Any
+from app.domain.entities import Booking, BookingView, Specialty, Provider, AppointmentSlot, WaitlistEntryView
 from app.domain.enums import BookingStatus
 from app.domain.protocols import DatabaseClientProtocol
 
@@ -233,4 +233,75 @@ class BookingRepository:
                 specialty_name=r['specialty_name']
             ) for r in rows
         ]
+
+    async def get_active_waitlist(self, provider_id: str) -> List[WaitlistEntryView]:
+        query = """
+            SELECT w.id, w.user_id, w.created_at, u.first_name, u.last_name, u.phone, u.email, u.rut
+            FROM waitlist w
+            JOIN users u ON w.user_id = u.id
+            WHERE w.provider_id = $1 AND w.status = 'ACTIVE'
+            ORDER BY w.created_at ASC
+        """
+        rows = await self._db.fetch(query, int(provider_id))
+        return [
+            WaitlistEntryView(
+                id=r['id'],
+                user_id=r['user_id'],
+                created_at=r['created_at'],
+                first_name=r['first_name'],
+                last_name=r.get('last_name'),
+                phone=r.get('phone'),
+                email=r.get('email'),
+                rut=r.get('rut')
+            ) for r in rows
+        ]
+
+    async def remove_from_waitlist(self, provider_id: str, entry_id: int) -> bool:
+        query = """
+            UPDATE waitlist 
+            SET status = 'EXPIRED', updated_at = NOW() 
+            WHERE id = $1 AND provider_id = $2 AND status = 'ACTIVE'
+        """
+        status_str = await self._db.execute(query, entry_id, int(provider_id))
+        return "UPDATE 1" in status_str
+
+    async def get_waitlist_stats(self, provider_id: str) -> Dict[str, Any]:
+        query = """
+            SELECT status, COUNT(*) as count 
+            FROM waitlist 
+            WHERE provider_id = $1 
+            GROUP BY status
+        """
+        rows = await self._db.fetch(query, int(provider_id))
+        
+        stats = {
+            "ACTIVE": 0,
+            "NOTIFIED": 0,
+            "FULFILLED": 0,
+            "EXPIRED": 0
+        }
+        for r in rows:
+            status = r['status']
+            if status in stats:
+                stats[status] = r['count']
+                
+        total = sum(stats.values())
+        active = stats["ACTIVE"]
+        notified = stats["NOTIFIED"]
+        fulfilled = stats["FULFILLED"]
+        expired = stats["EXPIRED"]
+        
+        conversion_rate = 0.0
+        if total > 0:
+            conversion_rate = float(fulfilled) / float(total) * 100.0
+            
+        return {
+            "total": total,
+            "active": active,
+            "notified": notified,
+            "fulfilled": fulfilled,
+            "expired": expired,
+            "conversion_rate": round(conversion_rate, 2)
+        }
+
 

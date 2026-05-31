@@ -1,10 +1,27 @@
-from fastapi import APIRouter, BackgroundTasks, Request
+from fastapi import APIRouter, BackgroundTasks, Request, Depends, HTTPException, status
 from pydantic import BaseModel
 from datetime import datetime, date
+from typing import List
 from app.core.logging import logger
 from app.fsm.booking_flow import format_confirmation_date_time
+from app.domain.entities import WaitlistEntryView
+from app.middleware.auth import get_current_user
 
 router = APIRouter()
+
+def require_provider_access():
+    def checker(provider_id: str, current_user: dict = Depends(get_current_user)):
+        if current_user.get("role") == "admin":
+            return current_user
+        if current_user.get("role") == "provider":
+            token_prov_id = current_user.get("provider_id")
+            if token_prov_id is not None and str(token_prov_id) == provider_id:
+                return current_user
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission denied: unauthorized provider or role"
+        )
+    return checker
 
 class ExceptionCreate(BaseModel):
     start_datetime: datetime
@@ -17,7 +34,11 @@ class SettingsUpdate(BaseModel):
     notice_period_hours: int
 
 @router.get("/provider/{provider_id}/dashboard")
-async def get_dashboard(provider_id: str, request: Request):
+async def get_dashboard(
+    provider_id: str, 
+    request: Request, 
+    current_user: dict = Depends(require_provider_access())
+):
     db_client = request.app.state.container.db_client
     """Returns basic stats for the provider dashboard."""
     # 1. Appointments Today
@@ -48,7 +69,13 @@ async def get_dashboard(provider_id: str, request: Request):
     }
 
 @router.get("/provider/{provider_id}/appointments")
-async def get_appointments(provider_id: str, start_date: datetime, end_date: datetime, request: Request):
+async def get_appointments(
+    provider_id: str, 
+    start_date: datetime, 
+    end_date: datetime, 
+    request: Request, 
+    current_user: dict = Depends(require_provider_access())
+):
     db_client = request.app.state.container.db_client
     """Returns appointments for a specific date range."""
     query = """
@@ -107,7 +134,13 @@ async def cancel_and_notify_patients(provider_id: str, start_dt: datetime, end_d
         logger.error("Failed to refresh slots after exception", error=str(e))
 
 @router.post("/provider/{provider_id}/exceptions")
-async def create_exception(provider_id: str, exc: ExceptionCreate, background_tasks: BackgroundTasks, request: Request):
+async def create_exception(
+    provider_id: str, 
+    exc: ExceptionCreate, 
+    background_tasks: BackgroundTasks, 
+    request: Request, 
+    current_user: dict = Depends(require_provider_access())
+):
     db_client = request.app.state.container.db_client
     telegram_sender = request.app.state.container.telegram_sender
     slot_engine = request.app.state.container.slot_engine
@@ -122,7 +155,12 @@ async def create_exception(provider_id: str, exc: ExceptionCreate, background_ta
     return {"status": "success", "message": "Exception created and patients notified"}
 
 @router.put("/provider/{provider_id}/settings")
-async def update_settings(provider_id: str, settings: SettingsUpdate, request: Request):
+async def update_settings(
+    provider_id: str, 
+    settings: SettingsUpdate, 
+    request: Request, 
+    current_user: dict = Depends(require_provider_access())
+):
     db_client = request.app.state.container.db_client
     await db_client.execute(
         """UPDATE providers 
@@ -131,3 +169,41 @@ async def update_settings(provider_id: str, settings: SettingsUpdate, request: R
         settings.slot_duration_minutes, settings.buffer_time_minutes, settings.notice_period_hours, provider_id
     )
     return {"status": "success"}
+
+@router.get("/provider/{provider_id}/waitlist", response_model=List[WaitlistEntryView])
+async def get_waitlist(
+    provider_id: str, 
+    request: Request, 
+    current_user: dict = Depends(require_provider_access())
+):
+    """Returns active waitlist entries for a provider."""
+    booking_service = request.app.state.container.booking_service
+    return await booking_service.get_active_waitlist(provider_id)
+
+@router.delete("/provider/{provider_id}/waitlist/{entry_id}")
+async def delete_waitlist_entry(
+    provider_id: str, 
+    entry_id: int, 
+    request: Request, 
+    current_user: dict = Depends(require_provider_access())
+):
+    """Removes (expires) a waitlist entry."""
+    booking_service = request.app.state.container.booking_service
+    success = await booking_service.remove_from_waitlist(provider_id, entry_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Waitlist entry not found or already processed/inactive"
+        )
+    return {"status": "success"}
+
+@router.get("/provider/{provider_id}/waitlist/stats")
+async def get_waitlist_stats(
+    provider_id: str, 
+    request: Request, 
+    current_user: dict = Depends(require_provider_access())
+):
+    """Returns waitlist stats/metrics for a provider."""
+    booking_service = request.app.state.container.booking_service
+    return await booking_service.get_waitlist_stats(provider_id)
+

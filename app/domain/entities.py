@@ -110,3 +110,14 @@ class ReminderPreferences(BaseModel):
     window_24h: bool = True
     window_2h: bool = True
     updated_at: Optional[datetime] = None
+
+class WaitlistEntryView(BaseModel):
+    id: int
+    user_id: int
+    created_at: datetime
+    first_name: str
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    rut: Optional[str] = None
+

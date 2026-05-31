@@ -1,5 +1,5 @@
-from typing import List, Optional
-from app.domain.entities import Specialty, Provider, AppointmentSlot, Booking, BookingView
+from typing import List, Optional, Dict, Any
+from app.domain.entities import Specialty, Provider, AppointmentSlot, Booking, BookingView, WaitlistEntryView
 from app.domain.protocols import BookingRepositoryProtocol
 
 class BookingService:
@@ -31,4 +31,14 @@ class BookingService:
 
     async def get_provider_id_by_slot(self, slot_id: str) -> Optional[str]:
         return await self._repo.get_provider_id_by_slot(slot_id)
+
+    async def get_active_waitlist(self, provider_id: str) -> List[WaitlistEntryView]:
+        return await self._repo.get_active_waitlist(provider_id)
+
+    async def remove_from_waitlist(self, provider_id: str, entry_id: int) -> bool:
+        return await self._repo.remove_from_waitlist(provider_id, entry_id)
+
+    async def get_waitlist_stats(self, provider_id: str) -> Dict[str, Any]:
+        return await self._repo.get_waitlist_stats(provider_id)
+
 

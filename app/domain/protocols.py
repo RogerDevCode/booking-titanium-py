@@ -25,6 +25,7 @@ from app.domain.entities import (
     Specialty,
     TelegramUser,
     ReminderPreferences,
+    WaitlistEntryView,
 )
 from app.domain.models import ConversationState
 
@@ -159,6 +160,19 @@ class BookingRepositoryProtocol(Protocol):
         self, user_id: int
     ) -> List[BookingView]: ...
 
+    async def get_active_waitlist(
+        self, provider_id: str
+    ) -> List[WaitlistEntryView]: ...
+
+    async def remove_from_waitlist(
+        self, provider_id: str, entry_id: int
+    ) -> bool: ...
+
+    async def get_waitlist_stats(
+        self, provider_id: str
+    ) -> Dict[str, Any]: ...
+
+
 
 class ConversationTransactionProtocol(Protocol):
     """
@@ -218,6 +232,19 @@ class BookingServiceProtocol(Protocol):
     async def get_provider_id_by_slot(
         self, slot_id: str
     ) -> Optional[str]: ...
+
+    async def get_active_waitlist(
+        self, provider_id: str
+    ) -> List[WaitlistEntryView]: ...
+
+    async def remove_from_waitlist(
+        self, provider_id: str, entry_id: int
+    ) -> bool: ...
+
+    async def get_waitlist_stats(
+        self, provider_id: str
+    ) -> Dict[str, Any]: ...
+
 
 
 class UserServiceProtocol(Protocol):
