@@ -1,7 +1,7 @@
 from fastapi import APIRouter, BackgroundTasks, Request, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime, date
-from typing import List
+from typing import List, Optional
 from app.core.logging import logger
 from app.fsm.booking_flow import format_confirmation_date_time
 from app.domain.entities import WaitlistEntryView
@@ -206,4 +206,142 @@ async def get_waitlist_stats(
     """Returns waitlist stats/metrics for a provider."""
     booking_service = request.app.state.container.booking_service
     return await booking_service.get_waitlist_stats(provider_id)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CLINICAL NOTES & TAGS (PHI)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+
+class TagResponse(BaseModel):
+    id: int
+    name: str
+    color: str
+
+class NoteCreate(BaseModel):
+    booking_id: Optional[int] = None
+    client_id: int
+    content: str
+    tags: List[str] = Field(default_factory=list)
+
+class NoteResponse(BaseModel):
+    id: int
+    booking_id: Optional[int]
+    client_id: int
+    provider_id: int
+    content: str
+    encryption_version: int
+    created_at: datetime
+    updated_at: datetime
+    tags: List[TagResponse]
+
+@router.post("/provider/{provider_id}/notes", response_model=NoteResponse)
+async def create_provider_note(
+    provider_id: str,
+    note_in: NoteCreate,
+    request: Request,
+    current_user: dict = Depends(require_provider_access())
+):
+    container = request.app.state.container
+    db = container.db_client
+    
+    async with db.transaction():
+        await db.execute("SELECT set_config('app.current_provider_id', $1, true)", provider_id)
+        await db.execute("SELECT set_config('app.admin_override', 'false', true)")
+        
+        note = await container.note_service.create_note(
+            provider_id=int(provider_id),
+            booking_id=note_in.booking_id,
+            client_id=note_in.client_id,
+            content=note_in.content,
+            tag_names=note_in.tags
+        )
+        return note
+
+@router.get("/provider/{provider_id}/notes", response_model=List[NoteResponse])
+async def list_provider_notes(
+    provider_id: str,
+    request: Request,
+    booking_id: Optional[int] = None,
+    current_user: dict = Depends(require_provider_access())
+):
+    container = request.app.state.container
+    db = container.db_client
+    
+    async with db.transaction():
+        await db.execute("SELECT set_config('app.current_provider_id', $1, true)", provider_id)
+        await db.execute("SELECT set_config('app.admin_override', 'false', true)")
+        
+        notes = await container.note_service.list_notes(
+            provider_id=int(provider_id),
+            booking_id=booking_id
+        )
+        return notes
+
+@router.get("/provider/{provider_id}/notes/{note_id}", response_model=NoteResponse)
+async def get_provider_note(
+    provider_id: str,
+    note_id: int,
+    request: Request,
+    current_user: dict = Depends(require_provider_access())
+):
+    container = request.app.state.container
+    db = container.db_client
+    
+    async with db.transaction():
+        await db.execute("SELECT set_config('app.current_provider_id', $1, true)", provider_id)
+        await db.execute("SELECT set_config('app.admin_override', 'false', true)")
+        
+        note = await container.note_service.get_note(
+            provider_id=int(provider_id),
+            note_id=note_id
+        )
+        if not note:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Note not found or access denied"
+            )
+        return note
+
+@router.delete("/provider/{provider_id}/notes/{note_id}")
+async def delete_provider_note(
+    provider_id: str,
+    note_id: int,
+    request: Request,
+    current_user: dict = Depends(require_provider_access())
+):
+    container = request.app.state.container
+    db = container.db_client
+    
+    async with db.transaction():
+        await db.execute("SELECT set_config('app.current_provider_id', $1, true)", provider_id)
+        await db.execute("SELECT set_config('app.admin_override', 'false', true)")
+        
+        success = await container.note_service.delete_note(
+            provider_id=int(provider_id),
+            note_id=note_id
+        )
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Note not found or access denied"
+            )
+        return {"status": "success"}
+
+@router.get("/provider/{provider_id}/tags", response_model=List[TagResponse])
+async def list_provider_tags(
+    provider_id: str,
+    request: Request,
+    current_user: dict = Depends(require_provider_access())
+):
+    container = request.app.state.container
+    db = container.db_client
+    
+    async with db.transaction():
+        await db.execute("SELECT set_config('app.current_provider_id', $1, true)", provider_id)
+        await db.execute("SELECT set_config('app.admin_override', 'false', true)")
+        
+        tags = await container.note_service.list_tags()
+        return tags
 

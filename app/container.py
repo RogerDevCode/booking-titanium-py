@@ -15,7 +15,9 @@ from app.domain.protocols import (
     ConversationTransactionProtocol,
     GCalServiceProtocol,
     AuthServiceProtocol,
-    ConversationLoggerProtocol
+    ConversationLoggerProtocol,
+    NoteRepositoryProtocol,
+    NoteServiceProtocol
 )
 from app.pipeline.preprocessor import MessagePreprocessor
 from app.pipeline.classifier import IntentClassifier
@@ -31,6 +33,7 @@ class Container:
     booking_repo: BookingRepositoryProtocol
     conversation_tx: ConversationTransactionProtocol
     conversation_logger: ConversationLoggerProtocol
+    note_repo: NoteRepositoryProtocol
     
     booking_service: BookingServiceProtocol
     user_service: UserServiceProtocol
@@ -40,6 +43,7 @@ class Container:
     rag_service: RAGServiceProtocol
     gcal_service: GCalServiceProtocol
     auth_service: AuthServiceProtocol
+    note_service: NoteServiceProtocol
     
     preprocessor: MessagePreprocessor
     classifier: IntentClassifier
@@ -71,6 +75,9 @@ def build_container(s: Settings = settings) -> Container:
     from app.db.repositories.conversation_repo import ConversationRepository
     conv_logger = ConversationRepository(db=db)
     
+    from app.db.repositories.note_repo import NoteRepository
+    note_rep = NoteRepository(db=db)
+    
     b_svc = BookingService(repo=b_repo)
     u_svc = UserService(db=db)
     n_svc = NotificationService(db=db, sender=sender)
@@ -84,6 +91,9 @@ def build_container(s: Settings = settings) -> Container:
     
     from app.services.auth_service import AuthService
     auth_svc = AuthService(db=db, settings=s)
+    
+    from app.services.note_service import NoteService
+    note_svc = NoteService(repo=note_rep)
     
     prep = MessagePreprocessor()
     clsf = IntentClassifier()
@@ -104,6 +114,7 @@ def build_container(s: Settings = settings) -> Container:
         booking_repo=b_repo,
         conversation_tx=conv_tx,
         conversation_logger=conv_logger,
+        note_repo=note_rep,
         booking_service=b_svc,
         user_service=u_svc,
         notification_service=n_svc,
@@ -111,6 +122,7 @@ def build_container(s: Settings = settings) -> Container:
         rag_service=rag_svc,
         gcal_service=gcal_svc,
         auth_service=auth_svc,
+        note_service=note_svc,
         slot_engine=s_eng,
         preprocessor=prep,
         classifier=clsf,
