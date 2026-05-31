@@ -282,6 +282,8 @@ class NotificationServiceProtocol(Protocol):
 
     async def auto_cancel_expired_bookings(self) -> None: ...
 
+    async def process_noshow_triggers(self) -> None: ...
+
 
 class GCalServiceProtocol(Protocol):
     """Contrato para el servicio de sincronización de Google Calendar."""

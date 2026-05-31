@@ -153,7 +153,8 @@ async def integration_container():
         'db/migrations/002_rls_policies.sql',
         'db/migrations/003_functions.sql',
         'db/migrations/005_provider_gcal.sql',
-        'db/migrations/006_web_auth.sql'
+        'db/migrations/006_web_auth.sql',
+        'db/migrations/007_provider_noshow_config.sql'
     ]
     async with container.db_client._pool.acquire() as conn: # type: ignore
         await conn.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")

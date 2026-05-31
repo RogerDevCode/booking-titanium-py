@@ -31,3 +31,4 @@ class BookingStatus(str, Enum):
     CONFIRMED = "CONFIRMED"
     CANCELLED = "CANCELLED"
     COMPLETED = "COMPLETED"
+    NO_SHOW = "NO_SHOW"

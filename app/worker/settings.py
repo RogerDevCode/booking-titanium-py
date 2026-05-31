@@ -5,6 +5,7 @@ from app.container import Container
 from app.worker.tasks import (
     make_process_message,
     make_cron_auto_cancel,
+    make_cron_noshow_trigger,
     make_cron_reminders,
     make_cron_flush_outbox,
     make_notify_waitlist,
@@ -17,6 +18,7 @@ from app.worker.tasks import (
 def create_worker_settings(container: Container) -> type:
     fn_process_message = make_process_message(container)
     fn_cron_auto_cancel = make_cron_auto_cancel(container)
+    fn_cron_noshow_trigger = make_cron_noshow_trigger(container)
     fn_cron_reminders = make_cron_reminders(container)
     fn_cron_flush_outbox = make_cron_flush_outbox(container)
     fn_notify_waitlist = make_notify_waitlist(container)
@@ -30,6 +32,7 @@ def create_worker_settings(container: Container) -> type:
         functions = [
             fn_process_message,
             fn_cron_auto_cancel,
+            fn_cron_noshow_trigger,
             fn_cron_reminders,
             fn_cron_flush_outbox,
             fn_notify_waitlist,
@@ -41,6 +44,8 @@ def create_worker_settings(container: Container) -> type:
         cron_jobs = [
             # Every 10 minutes (0, 10, 20...)
             cron(fn_cron_auto_cancel, minute={0, 10, 20, 30, 40, 50}, second=0),
+            # Every 10 minutes, offset by 2 (2, 12, 22...) for no-show checks
+            cron(fn_cron_noshow_trigger, minute={2, 12, 22, 32, 42, 52}, second=0),
             # Every 10 minutes, offset by 5 (5, 15, 25...) to distribute load
             cron(fn_cron_reminders, minute={5, 15, 25, 35, 45, 55}, second=0),
             # Fallback outbox flush every 1 minute

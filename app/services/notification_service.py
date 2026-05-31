@@ -124,3 +124,130 @@ class NotificationService:
         except Exception as e:
             logger.error("Auto-cancel cron failed", error=str(e))
 
+    async def process_noshow_triggers(self):
+        """
+        Scans for CONFIRMED bookings whose slot end_time has passed, 
+        marks them as NO_SHOW, increments users.noshow_count, and triggers
+        warnings/blocks based on the provider config.
+        """
+        try:
+            # Fetch all CONFIRMED bookings where the slot's end_time has passed
+            query = """
+                SELECT 
+                    b.id as booking_id, 
+                    b.user_id, 
+                    s.start_time,
+                    s.end_time, 
+                    s.id as slot_id,
+                    p.id as provider_id, 
+                    p.name as provider_name,
+                    p.max_noshows_warning, 
+                    p.max_noshows_block, 
+                    p.noshow_block_days
+                FROM bookings b
+                JOIN slots s ON b.slot_id = s.id
+                JOIN providers p ON s.provider_id = p.id
+                WHERE b.status = 'CONFIRMED' AND s.end_time < NOW()
+                ORDER BY s.end_time ASC
+            """
+            rows = await self._db.fetch(query)
+            
+            for r in rows:
+                booking_id = r['booking_id']
+                user_id = r['user_id']
+                provider_name = r['provider_name']
+                start_time = r['start_time']
+                max_warning = r['max_noshows_warning']
+                max_block = r['max_noshows_block']
+                block_days = r['noshow_block_days']
+                
+                try:
+                    is_blocked = False
+                    new_count = 0
+                    
+                    async with self._db.transaction():
+                        # Lock user record to avoid race conditions
+                        await self._db.execute("SELECT id FROM users WHERE id = $1 FOR UPDATE", user_id)
+                        
+                        # 1. Update booking status to NO_SHOW
+                        await self._db.execute(
+                            "UPDATE bookings SET status = 'NO_SHOW', updated_at = NOW() WHERE id = $1",
+                            booking_id
+                        )
+                        
+                        # 2. Increment noshow_count
+                        user_row = await self._db.fetchrow(
+                            "UPDATE users SET noshow_count = noshow_count + 1, updated_at = NOW() WHERE id = $1 RETURNING noshow_count",
+                            user_id
+                        )
+                        
+                        if not user_row:
+                            continue
+                            
+                        new_count = user_row['noshow_count']
+                        
+                        # 3. Determine if warning or block is triggered
+                        if new_count >= max_block:
+                            is_blocked = True
+                            # Update user block fields
+                            await self._db.execute(
+                                "UPDATE users SET is_blocked = true, blocked_until = NOW() + ($1 || ' days')::interval, updated_at = NOW() WHERE id = $2",
+                                str(block_days), user_id
+                            )
+                            # Create TEMP_BAN user penalty
+                            await self._db.execute(
+                                "INSERT INTO user_penalties (user_id, penalty_type, reason, active_until, is_active) "
+                                "VALUES ($1, 'TEMP_BAN', $2, NOW() + ($3 || ' days')::interval, true)",
+                                user_id, f"Auto-ban: {new_count}+ no-shows (límite {max_block} para {provider_name})", str(block_days)
+                            )
+                        elif new_count >= max_warning:
+                            # Create WARNING user penalty
+                            await self._db.execute(
+                                "INSERT INTO user_penalties (user_id, penalty_type, reason, is_active) "
+                                "VALUES ($1, 'WARNING', $2, true)",
+                                user_id, f"Auto-warning: {new_count}+ no-shows (límite {max_warning} para {provider_name})"
+                            )
+
+                    # Send notification outside/after transaction
+                    from app.fsm.booking_flow import format_chile_time
+                    time_str = format_chile_time(start_time)
+                    
+                    if is_blocked:
+                        msg = (
+                            f"⚠️ *Inasistencia Registrada (No-Show)*\n\n"
+                            f"Has faltado a tu cita programada el *{time_str}* con el Dr. *{provider_name}*.\n"
+                            f"Has acumulado *{new_count}* inasistencias en total.\n\n"
+                            f"🚨 *Cuenta Bloqueada*:\n"
+                            f"Debido a que has alcanzado el límite de {max_block} inasistencias "
+                            f"para este profesional, tu cuenta ha sido bloqueada temporalmente.\n"
+                            f"No podrás agendar ni reagendar horas por los próximos *{block_days} días*."
+                        )
+                    elif new_count >= max_warning:
+                        msg = (
+                            f"⚠️ *Inasistencia Registrada (No-Show)*\n\n"
+                            f"Has faltado a tu cita programada el *{time_str}* con el Dr. *{provider_name}*.\n"
+                            f"Has acumulado *{new_count}* inasistencias en total.\n\n"
+                            f"🚨 *Advertencia de Bloqueo*:\n"
+                            f"Has alcanzado el límite de advertencia ({max_warning} inasistencias).\n"
+                            f"Si acumulas *{max_block}* inasistencias con este profesional, "
+                            f"tu cuenta será bloqueada automáticamente por {block_days} días."
+                        )
+                    else:
+                        msg = (
+                            f"⚠️ *Inasistencia Registrada (No-Show)*\n\n"
+                            f"Se ha registrado una inasistencia para tu hora programada el *{time_str}* "
+                            f"con el Dr. *{provider_name}*.\n\n"
+                            f"Inasistencias acumuladas: *{new_count}*."
+                        )
+                        
+                    await self._sender.send_message(user_id, msg)
+                    await self._sender.flush_outbox(user_id)
+                    logger.info("Processed no-show booking", booking_id=booking_id, user_id=user_id, noshow_count=new_count)
+                    
+                except Exception as ex:
+                    logger.error("Failed to process no-show for booking", booking_id=booking_id, error=str(ex), exc_info=True)
+                    
+            logger.info("No-show check complete", count=len(rows))
+        except Exception as e:
+            logger.error("No-show trigger cron failed", error=str(e), exc_info=True)
+

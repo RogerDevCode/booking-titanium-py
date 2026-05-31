@@ -48,6 +48,10 @@ class BookingRepository:
     async def reschedule_booking_tx(self, user_id: int, old_booking_id: int, new_slot_id: str) -> tuple[Booking, str]:
         async with self._db.pool.acquire() as conn:
             async with conn.transaction():
+                query_block = "SELECT id FROM users WHERE id = $1 AND (is_blocked = true OR (blocked_until IS NOT NULL AND blocked_until > NOW()))"
+                if await conn.fetchrow(query_block, user_id):
+                    raise ValueError("User is blocked from booking appointments")
+                
                 query_old = "SELECT slot_id FROM bookings WHERE id = $1 AND user_id = $2 AND status = 'CONFIRMED' FOR UPDATE"
                 old_row = await conn.fetchrow(query_old, old_booking_id, user_id)
                 if not old_row:
@@ -136,6 +140,10 @@ class BookingRepository:
     async def create_booking_tx(self, user_id: int, slot_id: str) -> Booking:
         async with self._db.pool.acquire() as conn:
             async with conn.transaction():
+                query_block = "SELECT id FROM users WHERE id = $1 AND (is_blocked = true OR (blocked_until IS NOT NULL AND blocked_until > NOW()))"
+                if await conn.fetchrow(query_block, user_id):
+                    raise ValueError("User is blocked from booking appointments")
+                
                 query_slot = "SELECT id FROM slots WHERE id = $1 AND is_available = true FOR UPDATE"
                 slot = await conn.fetchrow(query_slot, int(slot_id))
                 if not slot:

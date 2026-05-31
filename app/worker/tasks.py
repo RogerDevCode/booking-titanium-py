@@ -200,6 +200,12 @@ def make_cron_auto_cancel(container):
 
     return cron_auto_cancel
 
+def make_cron_noshow_trigger(container):
+    async def cron_noshow_trigger(ctx: dict) -> None:
+        """Cron job to process no-show triggers."""
+        await container.notification_service.process_noshow_triggers()
+    return cron_noshow_trigger
+
 def make_cron_reminders(container):
     async def cron_reminders(ctx: dict) -> None:
         """Cron job to send appointment reminders."""
