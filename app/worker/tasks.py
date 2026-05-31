@@ -116,13 +116,20 @@ def make_process_message(container):
                     preflight_data["confidence"] = confidence
                 
                 elif state.state == FSMState.WAITING_FAQ:
-                    if prep_result.cleaned_text.lower() not in ["volver", "salir", "menu", "4"]:
-                        
-                        
+                    if prep_result.cleaned_text.lower() not in ["volver", "salir", "menu", "4", "2", "volver al menú"]:
                         from app.core.circuit_breaker import CircuitBreakerOpenException
                         import asyncio
                     
                         try:
+                            # 5-minute inactivity check
+                            now = time.time()
+                            last_interaction = state.context.get("faq_last_interaction")
+                            faq_history = state.context.get("faq_history", [])
+                            if last_interaction and (now - last_interaction > 300):
+                                faq_history = []
+                            state.context["faq_last_interaction"] = now
+
+                            # Retrieve knowledge base entries
                             kb_entries = await asyncio.wait_for(
                                 container.rag_service.search(prep_result.cleaned_text), timeout=1.0
                             )
@@ -130,10 +137,31 @@ def make_process_message(container):
                             preflight_data["rag_categories"] = [e.category for e in kb_entries]
                             preflight_data["has_provider_faq"] = any(e.provider_id is not None for e in kb_entries)
                         
-                            context = container.rag_service.format_context(kb_entries)
+                            rag_context = container.rag_service.format_context(kb_entries)
+                            
+                            # Build conversation history context
+                            history_str = ""
+                            if faq_history:
+                                history_str = "\nHistorial reciente de la conversación:\n"
+                                for item in faq_history:
+                                    history_str += f"- Paciente: {item['question']}\n- Asistente: {item['answer']}\n"
+                            
+                            combined_context = f"{rag_context}\n{history_str}"
+                            
+                            # Get response using combined context
                             answer = await asyncio.wait_for(
-                                container.ai_service.get_response(prep_result.cleaned_text, context), timeout=2.5
+                                container.ai_service.get_response(prep_result.cleaned_text, combined_context), timeout=2.5
                             )
+                            
+                            # Append to history and keep last 3
+                            faq_history.append({
+                                "question": prep_result.cleaned_text,
+                                "answer": answer
+                            })
+                            if len(faq_history) > 3:
+                                faq_history.pop(0)
+                            state.context["faq_history"] = faq_history
+                            
                         except asyncio.TimeoutError:
                             logger.error("AI service timeout", chat_id=chat_id)
                             answer = "⚠️ Lo siento, el sistema está tardando demasiado en responder. Por favor, intenta de nuevo o usa el menú principal."
