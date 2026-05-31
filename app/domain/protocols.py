@@ -405,6 +405,28 @@ class TelegramSenderProtocol(Protocol):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# CAPA DE LOGGING
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class ConversationLoggerProtocol(Protocol):
+    """
+    Contrato para el logger conversacional.
+    Registra mensajes entrantes y salientes en la base de datos.
+    """
+
+    async def log_message(
+        self,
+        client_id: int,
+        direction: str,
+        content: str,
+        intent: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        provider_id: Optional[str] = None,
+    ) -> str: ...
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # CAPA FSM
 # ═══════════════════════════════════════════════════════════════════════════
 

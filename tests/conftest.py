@@ -11,7 +11,7 @@ from app.domain.protocols import (
     BookingServiceProtocol, UserServiceProtocol, TelegramSenderProtocol,
     AIServiceProtocol, RAGServiceProtocol, ConversationTransactionProtocol,
     SlotEngineProtocol, NotificationServiceProtocol, GCalServiceProtocol,
-    AuthServiceProtocol
+    AuthServiceProtocol, ConversationLoggerProtocol
 )
 from app.container import Container
 from app.pipeline.preprocessor import MessagePreprocessor
@@ -99,11 +99,16 @@ def fake_conversation_tx() -> AsyncMock:
     return AsyncMock(spec=ConversationTransactionProtocol)
 
 @pytest.fixture
+def fake_conversation_logger() -> AsyncMock:
+    return AsyncMock(spec=ConversationLoggerProtocol)
+
+@pytest.fixture
 def fake_container(
     fake_db, fake_redis, fake_sender, fake_booking_repo,
     fake_conversation_tx, fake_booking_service, fake_user_service,
     fake_notification_service, fake_slot_engine, fake_ai_service,
-    fake_rag_service, fake_gcal_service, fake_auth_service
+    fake_rag_service, fake_gcal_service, fake_auth_service,
+    fake_conversation_logger
 ) -> Container:
     prep = MessagePreprocessor()
     clsf = IntentClassifier()
@@ -123,6 +128,7 @@ def fake_container(
         telegram_sender=fake_sender,
         booking_repo=fake_booking_repo,
         conversation_tx=fake_conversation_tx,
+        conversation_logger=fake_conversation_logger,
         booking_service=fake_booking_service,
         user_service=fake_user_service,
         notification_service=fake_notification_service,
@@ -154,7 +160,8 @@ async def integration_container():
         'db/migrations/003_functions.sql',
         'db/migrations/005_provider_gcal.sql',
         'db/migrations/006_web_auth.sql',
-        'db/migrations/007_provider_noshow_config.sql'
+        'db/migrations/007_provider_noshow_config.sql',
+        'db/migrations/008_conversations.sql'
     ]
     async with container.db_client._pool.acquire() as conn: # type: ignore
         await conn.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
@@ -183,7 +190,8 @@ async def clean_db_and_redis(integration_container):
                 conversation_states,
                 knowledge_base,
                 provider_schedules,
-                provider_exceptions
+                provider_exceptions,
+                conversations
             CASCADE;
         """)
         

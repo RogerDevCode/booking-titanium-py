@@ -104,6 +104,47 @@ class TelegramSender:
                     # Mark as sent
                     await self._db.execute("UPDATE outbox_messages SET status = 'SENT' WHERE id = $1", msg_row["id"])
                     
+                    # Log to conversations table
+                    provider_id = None
+                    try:
+                        state_row = await self._db.fetchrow(
+                            "SELECT context, booking_draft FROM conversation_states WHERE chat_id = $1",
+                            chat_id
+                        )
+                        if state_row:
+                            ctx_data = state_row["context"] or {}
+                            draft_data = state_row["booking_draft"] or {}
+                            if isinstance(ctx_data, str):
+                                ctx_data = json.loads(ctx_data)
+                            if isinstance(draft_data, str):
+                                draft_data = json.loads(draft_data)
+                            
+                            raw_p_id = draft_data.get("provider_id") or ctx_data.get("provider_id")
+                            if raw_p_id:
+                                try:
+                                    from uuid import UUID
+                                    UUID(str(raw_p_id))
+                                    provider_id = str(raw_p_id)
+                                except ValueError:
+                                    provider_id = None
+                    except Exception as select_err:
+                        logger.warning("Failed to extract provider_id for outbound log", error=str(select_err), chat_id=chat_id)
+
+                    try:
+                        await self._db.execute(
+                            """
+                            INSERT INTO conversations (
+                                client_id, direction, content, metadata, provider_id
+                            ) VALUES ($1, 'outbound', $2, $3::jsonb, $4::uuid)
+                            """,
+                            chat_id,
+                            msg_row["text"],
+                            json.dumps({"reply_markup": json.loads(rm_str) if rm_str else None}),
+                            provider_id
+                        )
+                    except Exception as log_err:
+                        logger.warning("Failed to log outbound conversation message", error=str(log_err), chat_id=chat_id)
+
                     # Update conversation_states with the message_id of the active menu if it has reply_markup
                     res_json = response.json()
                     if res_json.get("ok") and rm_str:

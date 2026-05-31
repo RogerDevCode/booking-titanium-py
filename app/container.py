@@ -14,7 +14,8 @@ from app.domain.protocols import (
     RAGServiceProtocol,
     ConversationTransactionProtocol,
     GCalServiceProtocol,
-    AuthServiceProtocol
+    AuthServiceProtocol,
+    ConversationLoggerProtocol
 )
 from app.pipeline.preprocessor import MessagePreprocessor
 from app.pipeline.classifier import IntentClassifier
@@ -29,6 +30,7 @@ class Container:
     
     booking_repo: BookingRepositoryProtocol
     conversation_tx: ConversationTransactionProtocol
+    conversation_logger: ConversationLoggerProtocol
     
     booking_service: BookingServiceProtocol
     user_service: UserServiceProtocol
@@ -66,6 +68,9 @@ def build_container(s: Settings = settings) -> Container:
     b_repo = BookingRepository(db=db)
     conv_tx = ConversationTransaction(db=db)
     
+    from app.db.repositories.conversation_repo import ConversationRepository
+    conv_logger = ConversationRepository(db=db)
+    
     b_svc = BookingService(repo=b_repo)
     u_svc = UserService(db=db)
     n_svc = NotificationService(db=db, sender=sender)
@@ -98,6 +103,7 @@ def build_container(s: Settings = settings) -> Container:
         telegram_sender=sender,
         booking_repo=b_repo,
         conversation_tx=conv_tx,
+        conversation_logger=conv_logger,
         booking_service=b_svc,
         user_service=u_svc,
         notification_service=n_svc,

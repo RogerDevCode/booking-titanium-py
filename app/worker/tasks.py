@@ -174,6 +174,30 @@ def make_process_message(container):
             
                 # Inject preflight data into the state context
                 state.context["preflight"] = preflight_data
+
+                # Log inbound message
+                intent_val = None
+                if "intent" in preflight_data and preflight_data["intent"]:
+                    intent_val = getattr(preflight_data["intent"], "value", str(preflight_data["intent"]))
+                
+                provider_id = state.booking_draft.get("provider_id") or state.context.get("provider_id")
+                
+                log_metadata = {"update_id": payload.get("update_id")}
+                if callback_query:
+                    log_metadata["callback_query_id"] = callback_query.get("id")
+                    log_metadata["callback_data"] = callback_data
+                
+                try:
+                    await container.conversation_logger.log_message(
+                        client_id=chat_id,
+                        direction="inbound",
+                        content=input_text,
+                        intent=intent_val,
+                        metadata=log_metadata,
+                        provider_id=provider_id
+                    )
+                except Exception as log_err:
+                    logger.warning("Failed to log inbound conversation message", error=str(log_err), chat_id=chat_id)
             
                 # 6. Start true global database transaction for FSM DB writes
                 async with container.db_client.transaction():
